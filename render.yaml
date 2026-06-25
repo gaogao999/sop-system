@@ -1,0 +1,35 @@
+# Render (https://render.com) deploy config for the SOP system.
+#
+# New -> Blueprint -> select this repository. It provisions the web service,
+# persistent disk and env vars automatically (you'll be asked for
+# ADMIN_USER / ADMIN_PASS). Or deploy manually: New -> Web Service ->
+# Runtime: Docker -> add a Disk at /data -> set the env vars below.
+services:
+  - type: web
+    name: sop-system
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: DB_PATH
+        value: /data/sop.db
+      - key: UPLOAD_DIR
+        value: /data/uploads
+      # Session signing key — generated once and kept by Render
+      - key: SESSION_SECRET
+        generateValue: true
+      # Set your own admin credentials in the Render dashboard
+      - key: ADMIN_USER
+        sync: false
+      - key: ADMIN_PASS
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+    disk:
+      # Keep the SQLite DB and uploaded files across deploys
+      name: sop-data
+      mountPath: /data
+      sizeGB: 1
