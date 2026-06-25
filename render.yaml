@@ -1,9 +1,19 @@
 # Render (https://render.com) deploy config for the SOP system.
 #
-# New -> Blueprint -> select this repository. It provisions the web service,
-# persistent disk and env vars automatically (you'll be asked for
-# ADMIN_USER / ADMIN_PASS). Or deploy manually: New -> Web Service ->
-# Runtime: Docker -> add a Disk at /data -> set the env vars below.
+# New -> Blueprint -> select this repository. It provisions the web service
+# and env vars automatically (you'll be asked for ADMIN_USER / ADMIN_PASS).
+#
+# NOTE: This config targets Render's FREE plan, which does NOT support a
+# persistent disk. The SQLite DB and uploaded files live on the container's
+# ephemeral filesystem, so they are RESET on every restart / redeploy (and the
+# free instance sleeps after ~15 min of inactivity). Use this for testing only.
+#
+# To make data persistent, switch `plan: free` to `plan: starter` (paid) and
+# re-add a disk:
+#     disk:
+#       name: sop-data
+#       mountPath: /data
+#       sizeGB: 1
 services:
   - type: web
     name: sop-system
@@ -12,10 +22,8 @@ services:
     plan: free
     healthCheckPath: /healthz
     envVars:
-      - key: DB_PATH
-        value: /data/sop.db
-      - key: UPLOAD_DIR
-        value: /data/uploads
+      # DB_PATH / UPLOAD_DIR default to /data/* (set in the Dockerfile). On the
+      # free plan /data is ephemeral but still writable, so no override needed.
       # Session signing key — generated once and kept by Render
       - key: SESSION_SECRET
         generateValue: true
@@ -28,8 +36,3 @@ services:
         value: production
       - key: TRUST_PROXY
         value: "1"
-    disk:
-      # Keep the SQLite DB and uploaded files across deploys
-      name: sop-data
-      mountPath: /data
-      sizeGB: 1
