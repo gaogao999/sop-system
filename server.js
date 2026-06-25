@@ -104,6 +104,52 @@ app.post('/logout', (req, res) => {
 
 app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.session.user }));
 
+// --- Lookup axes (doc types & departments) ---------------------------------
+// Both are simple editable name lists. They share the same shape, so a small
+// factory builds the CRUD routes for each, keyed by the file column it filters.
+function registerLookup(basePath, table, fileColumn, label) {
+  // List with per-item file counts
+  app.get(basePath, requireAuth, (req, res) => {
+    const rows = db
+      .prepare(
+        `SELECT t.id, t.name, COUNT(f.id) AS file_count
+         FROM ${table} t
+         LEFT JOIN sop_files f ON f.${fileColumn} = t.id
+         GROUP BY t.id ORDER BY t.name`
+      )
+      .all();
+    res.json(rows);
+  });
+
+  // Add
+  app.post(basePath, requireAuth, (req, res) => {
+    const name = (req.body.name || '').toString().trim().slice(0, 50);
+    if (!name) return res.status(400).json({ error: `Please enter a ${label} name` });
+    const exists = db.prepare(`SELECT id FROM ${table} WHERE name = ?`).get(name);
+    if (exists) return res.status(409).json({ error: `That ${label} already exists` });
+    const info = db.prepare(`INSERT INTO ${table} (name) VALUES (?)`).run(name);
+    res.status(201).json({ id: info.lastInsertRowid, name, file_count: 0 });
+  });
+
+  // Delete — blocked while files still reference it (both axes are required)
+  app.delete(`${basePath}/:id`, requireAuth, (req, res) => {
+    const id = Number(req.params.id);
+    const row = db.prepare(`SELECT id FROM ${table} WHERE id = ?`).get(id);
+    if (!row) return res.status(404).json({ error: `${label} not found` });
+    const used = db.prepare(`SELECT COUNT(*) AS c FROM sop_files WHERE ${fileColumn} = ?`).get(id).c;
+    if (used > 0) {
+      return res
+        .status(409)
+        .json({ error: `Cannot delete: ${used} file(s) still use this ${label}` });
+    }
+    db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
+    res.json({ ok: true });
+  });
+}
+
+registerLookup('/api/doc-types', 'doc_types', 'doc_type_id', 'document type');
+registerLookup('/api/departments', 'departments', 'department_id', 'department');
+
 // --- Static files ----------------------------------------------------------
 // The sign-in page and static assets are served without auth
 app.get('/login.html', (req, res) => res.sendFile(join(__dirname, 'public', 'login.html')));
@@ -112,51 +158,22 @@ app.use('/assets', express.static(join(__dirname, 'public')));
 // The home page requires auth (redirects to sign-in if not logged in)
 app.get('/', requireAuth, (req, res) => res.sendFile(join(__dirname, 'public', 'index.html')));
 
-// --- Category API ----------------------------------------------------------
-app.get('/api/categories', requireAuth, (req, res) => {
-  const rows = db
-    .prepare(
-      `SELECT c.id, c.name, COUNT(f.id) AS file_count
-       FROM categories c
-       LEFT JOIN sop_files f ON f.category_id = c.id
-       GROUP BY c.id ORDER BY c.name`
-    )
-    .all();
-  res.json(rows);
-});
-
-app.post('/api/categories', requireAuth, (req, res) => {
-  const name = (req.body.name || '').toString().trim().slice(0, 50);
-  if (!name) return res.status(400).json({ error: 'Please enter a category name' });
-  const exists = db.prepare('SELECT id FROM categories WHERE name = ?').get(name);
-  if (exists) return res.status(409).json({ error: 'A category with that name already exists' });
-  const info = db.prepare('INSERT INTO categories (name) VALUES (?)').run(name);
-  res.status(201).json({ id: info.lastInsertRowid, name, file_count: 0 });
-});
-
-app.delete('/api/categories/:id', requireAuth, (req, res) => {
-  const id = Number(req.params.id);
-  const cat = db.prepare('SELECT id FROM categories WHERE id = ?').get(id);
-  if (!cat) return res.status(404).json({ error: 'Category not found' });
-  // Linked files become uncategorized (category_id = NULL) via ON DELETE SET NULL
-  db.prepare('DELETE FROM categories WHERE id = ?').run(id);
-  res.json({ ok: true });
-});
-
 // --- File API --------------------------------------------------------------
 const fileSelect = `
-  SELECT f.id, f.title, f.description, f.category_id, c.name AS category_name,
+  SELECT f.id, f.title, f.description,
+         f.doc_type_id, t.name AS doc_type_name,
+         f.department_id, d.name AS department_name,
          f.original_name, f.mimetype, f.size, f.uploaded_at,
          u.username AS uploaded_by_name
   FROM sop_files f
-  LEFT JOIN categories c ON c.id = f.category_id
+  LEFT JOIN doc_types t ON t.id = f.doc_type_id
+  LEFT JOIN departments d ON d.id = f.department_id
   LEFT JOIN users u ON u.id = f.uploaded_by
 `;
 
-// List + search (q: title/description/original name, category: category id)
+// List + search (q: title/description/original name; type/department: axis ids)
 app.get('/api/files', requireAuth, (req, res) => {
   const q = (req.query.q || '').toString().trim();
-  const category = req.query.category;
   const where = [];
   const params = [];
 
@@ -165,40 +182,59 @@ app.get('/api/files', requireAuth, (req, res) => {
     const like = `%${q}%`;
     params.push(like, like, like);
   }
-  if (category === 'none') {
-    where.push('f.category_id IS NULL');
-  } else if (category !== undefined && category !== '' && category !== 'all') {
-    where.push('f.category_id = ?');
-    params.push(Number(category));
-  }
+  // Each axis filters independently; 'all'/empty means no filter on that axis
+  const axisFilter = (value, column) => {
+    if (value !== undefined && value !== '' && value !== 'all') {
+      where.push(`f.${column} = ?`);
+      params.push(Number(value));
+    }
+  };
+  axisFilter(req.query.type, 'doc_type_id');
+  axisFilter(req.query.department, 'department_id');
 
   const sql = `${fileSelect} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY f.uploaded_at DESC`;
   res.json(db.prepare(sql).all(...params));
 });
 
-// Upload
+// Upload — both the document type and the department are required
 app.post('/api/files', requireAuth, (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.file) return res.status(400).json({ error: 'Please choose a file' });
 
+    const cleanup = () => {
+      try {
+        unlinkSync(join(UPLOAD_DIR, req.file.filename));
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const docTypeId = Number(req.body.doc_type_id);
+    const departmentId = Number(req.body.department_id);
+    if (!docTypeId || !db.prepare('SELECT id FROM doc_types WHERE id = ?').get(docTypeId)) {
+      cleanup();
+      return res.status(400).json({ error: 'Please choose a document type' });
+    }
+    if (!departmentId || !db.prepare('SELECT id FROM departments WHERE id = ?').get(departmentId)) {
+      cleanup();
+      return res.status(400).json({ error: 'Please choose a department' });
+    }
+
     const title = (req.body.title || req.file.originalname).toString().trim().slice(0, 200);
     const description = (req.body.description || '').toString().trim().slice(0, 1000);
-    let categoryId = req.body.category_id ? Number(req.body.category_id) : null;
-    if (categoryId && !db.prepare('SELECT id FROM categories WHERE id = ?').get(categoryId)) {
-      categoryId = null;
-    }
 
     const info = db
       .prepare(
         `INSERT INTO sop_files
-          (title, description, category_id, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (title, description, doc_type_id, department_id, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title,
         description,
-        categoryId,
+        docTypeId,
+        departmentId,
         req.file.filename,
         req.file.originalname,
         req.file.mimetype,

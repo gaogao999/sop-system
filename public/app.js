@@ -1,7 +1,28 @@
 'use strict';
 
 const $ = (sel) => document.querySelector(sel);
-const state = { categories: [], activeCategory: 'all', q: '' };
+// One descriptor per filter axis keeps the two lists (type / department) DRY.
+const AXES = {
+  type: {
+    api: '/api/doc-types',
+    listEl: '#typeList',
+    uploadEl: '#uploadType',
+    queryKey: 'type',
+    label: 'type',
+  },
+  department: {
+    api: '/api/departments',
+    listEl: '#departmentList',
+    uploadEl: '#uploadDepartment',
+    queryKey: 'department',
+    label: 'department',
+  },
+};
+const state = {
+  type: { items: [], active: 'all' },
+  department: { items: [], active: 'all' },
+  q: '',
+};
 
 // --- Utilities -------------------------------------------------------------
 const fmtSize = (n) => {
@@ -37,44 +58,47 @@ async function api(path, opts) {
   return data;
 }
 
-// --- Categories ------------------------------------------------------------
-async function loadCategories() {
-  state.categories = await api('/api/categories');
-  renderCategories();
-  renderCategoryOptions();
+// --- Filter axes (type / department) ---------------------------------------
+async function loadAxis(key) {
+  const axis = AXES[key];
+  state[key].items = await api(axis.api);
+  renderAxis(key);
+  renderAxisOptions(key);
 }
 
-function renderCategories() {
-  const ul = $('#categoryList');
-  const total = state.categories.reduce((s, c) => s + c.file_count, 0);
-  const items = [
-    { id: 'all', name: 'All', file_count: total, fixed: true },
-    ...state.categories,
-    { id: 'none', name: 'Uncategorized', file_count: -1, fixed: true },
-  ];
-  ul.innerHTML = items
+function renderAxis(key) {
+  const axis = AXES[key];
+  const s = state[key];
+  const total = s.items.reduce((sum, c) => sum + c.file_count, 0);
+  const items = [{ id: 'all', name: 'All', file_count: total, fixed: true }, ...s.items];
+  $(axis.listEl).innerHTML = items
     .map((c) => {
-      const active = String(state.activeCategory) === String(c.id) ? ' active' : '';
+      const active = String(s.active) === String(c.id) ? ' active' : '';
       const count = c.file_count >= 0 ? `<span class="count">${c.file_count}</span>` : '';
-      const del =
-        c.fixed ? '' : `<button class="del-cat" data-id="${c.id}" title="Delete">×</button>`;
-      return `<li class="cat-item${active}" data-id="${c.id}">
-        <span class="cat-name">${esc(c.name)}</span>${count}${del}</li>`;
+      const del = c.fixed
+        ? ''
+        : `<button class="del-item" data-id="${c.id}" title="Delete">×</button>`;
+      return `<li class="filter-item${active}" data-id="${c.id}">
+        <span class="filter-name">${esc(c.name)}</span>${count}${del}</li>`;
     })
     .join('');
 }
 
-function renderCategoryOptions() {
-  $('#uploadCategory').innerHTML =
-    '<option value="">Uncategorized</option>' +
-    state.categories.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+function renderAxisOptions(key) {
+  const axis = AXES[key];
+  // Required selects: a blank placeholder forces an explicit choice
+  $(axis.uploadEl).innerHTML =
+    `<option value="" disabled selected>Select…</option>` +
+    state[key].items.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
 }
 
 // --- File list -------------------------------------------------------------
 async function loadFiles() {
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
-  if (state.activeCategory !== 'all') params.set('category', state.activeCategory);
+  for (const key of Object.keys(AXES)) {
+    if (state[key].active !== 'all') params.set(AXES[key].queryKey, state[key].active);
+  }
   const files = await api(`/api/files?${params.toString()}`);
   renderFiles(files);
 }
@@ -83,7 +107,7 @@ function renderFiles(files) {
   $('#listInfo').textContent = `${files.length} file${files.length === 1 ? '' : 's'}`;
   const tbody = $('#fileRows');
   if (files.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="empty">No matching files</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="empty">No matching files</td></tr>`;
     return;
   }
   tbody.innerHTML = files
@@ -95,7 +119,8 @@ function renderFiles(files) {
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
         </td>
-        <td>${f.category_name ? esc(f.category_name) : '<span class="muted">Uncategorized</span>'}</td>
+        <td>${f.doc_type_name ? `<span class="tag">${esc(f.doc_type_name)}</span>` : '-'}</td>
+        <td>${f.department_name ? esc(f.department_name) : '-'}</td>
         <td>${fmtSize(f.size)}</td>
         <td>${fmtDate(f.uploaded_at)}</td>
         <td>${esc(f.uploaded_by_name || '-')}</td>
@@ -109,44 +134,59 @@ function renderFiles(files) {
 }
 
 // --- Events ----------------------------------------------------------------
-function bindEvents() {
-  // Select / delete category (delegated)
-  $('#categoryList').addEventListener('click', async (e) => {
-    const del = e.target.closest('.del-cat');
+function bindAxisEvents(key) {
+  const axis = AXES[key];
+
+  // Select / delete an axis item (delegated)
+  $(axis.listEl).addEventListener('click', async (e) => {
+    const del = e.target.closest('.del-item');
     if (del) {
       e.stopPropagation();
-      if (!confirm('Delete this category? Files in it will become Uncategorized.')) return;
-      await api(`/api/categories/${del.dataset.id}`, { method: 'DELETE' });
-      if (String(state.activeCategory) === del.dataset.id) state.activeCategory = 'all';
-      await loadCategories();
+      if (!confirm(`Delete this ${axis.label}?`)) return;
+      try {
+        await api(`${axis.api}/${del.dataset.id}`, { method: 'DELETE' });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      if (String(state[key].active) === del.dataset.id) state[key].active = 'all';
+      await loadAxis(key);
       await loadFiles();
       return;
     }
-    const item = e.target.closest('.cat-item');
+    const item = e.target.closest('.filter-item');
     if (item) {
-      state.activeCategory = item.dataset.id;
-      renderCategories();
+      state[key].active = item.dataset.id;
+      renderAxis(key);
       loadFiles();
     }
   });
+}
 
-  // Add category
-  $('#categoryForm').addEventListener('submit', async (e) => {
+function bindAddForm(formSel, inputSel, key) {
+  $(formSel).addEventListener('submit', async (e) => {
     e.preventDefault();
-    const name = $('#newCategory').value.trim();
+    const name = $(inputSel).value.trim();
     if (!name) return;
     try {
-      await api('/api/categories', {
+      await api(AXES[key].api, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name }),
       });
-      $('#newCategory').value = '';
-      await loadCategories();
+      $(inputSel).value = '';
+      await loadAxis(key);
     } catch (err) {
       alert(err.message);
     }
   });
+}
+
+function bindEvents() {
+  bindAxisEvents('type');
+  bindAxisEvents('department');
+  bindAddForm('#typeForm', '#newType', 'type');
+  bindAddForm('#departmentForm', '#newDepartment', 'department');
 
   // Search (as you type)
   let timer;
@@ -163,7 +203,7 @@ function bindEvents() {
     if (!confirm('Delete this file?')) return;
     await api(`/api/files/${del.dataset.id}`, { method: 'DELETE' });
     await loadFiles();
-    await loadCategories();
+    await Promise.all([loadAxis('type'), loadAxis('department')]);
   });
 
   // Upload modal
@@ -171,9 +211,9 @@ function bindEvents() {
   $('#uploadOpen').addEventListener('click', () => {
     $('#uploadForm').reset();
     $('#uploadError').hidden = true;
-    // Preselect the currently active category
-    if (state.activeCategory !== 'all' && state.activeCategory !== 'none') {
-      $('#uploadCategory').value = state.activeCategory;
+    // Preselect whichever axes are currently filtered
+    for (const key of Object.keys(AXES)) {
+      if (state[key].active !== 'all') $(AXES[key].uploadEl).value = state[key].active;
     }
     dialog.showModal();
   });
@@ -187,12 +227,13 @@ function bindEvents() {
     fd.append('file', fileInput.files[0]);
     fd.append('title', $('#title').value);
     fd.append('description', $('#description').value);
-    fd.append('category_id', $('#uploadCategory').value);
+    fd.append('doc_type_id', $('#uploadType').value);
+    fd.append('department_id', $('#uploadDepartment').value);
     try {
       await api('/api/files', { method: 'POST', body: fd });
       dialog.close();
       await loadFiles();
-      await loadCategories();
+      await Promise.all([loadAxis('type'), loadAxis('department')]);
     } catch (err) {
       const el = $('#uploadError');
       el.textContent = err.message;
@@ -210,7 +251,7 @@ async function init() {
     return; // api() already redirected on 401
   }
   bindEvents();
-  await loadCategories();
+  await Promise.all([loadAxis('type'), loadAxis('department')]);
   await loadFiles();
 }
 

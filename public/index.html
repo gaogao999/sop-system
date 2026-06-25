@@ -18,13 +18,21 @@
     </header>
 
     <div class="layout">
-      <!-- Sidebar: categories -->
+      <!-- Sidebar: two filter axes -->
       <aside class="sidebar">
-        <h2>Categories</h2>
-        <ul id="categoryList" class="category-list"></ul>
+        <!-- Document type axis (QP / SOP / Format) -->
+        <h2>Type (種別)</h2>
+        <ul id="typeList" class="filter-list"></ul>
+        <form id="typeForm" class="add-filter">
+          <input type="text" id="newType" placeholder="New type" maxlength="50" />
+          <button type="submit">Add</button>
+        </form>
 
-        <form id="categoryForm" class="add-category">
-          <input type="text" id="newCategory" placeholder="New category" maxlength="50" />
+        <!-- Department axis -->
+        <h2>Department (部署)</h2>
+        <ul id="departmentList" class="filter-list"></ul>
+        <form id="departmentForm" class="add-filter">
+          <input type="text" id="newDepartment" placeholder="New department" maxlength="50" />
           <button type="submit">Add</button>
         </form>
       </aside>
@@ -42,9 +50,10 @@
           <table class="file-table">
             <thead>
               <tr>
-                <th>Type</th>
+                <th></th>
                 <th>Title</th>
-                <th>Category</th>
+                <th>Type (種別)</th>
+                <th>Department (部署)</th>
                 <th>Size</th>
                 <th>Uploaded</th>
                 <th>By</th>
@@ -69,10 +78,16 @@
           Title
           <input type="text" id="title" name="title" placeholder="Defaults to the file name if left blank" maxlength="200" />
         </label>
-        <label>
-          Category
-          <select id="uploadCategory" name="category_id"></select>
-        </label>
+        <div class="field-row">
+          <label>
+            Type (種別) <span class="req">*</span>
+            <select id="uploadType" name="doc_type_id" required></select>
+          </label>
+          <label>
+            Department (部署) <span class="req">*</span>
+            <select id="uploadDepartment" name="department_id" required></select>
+          </label>
+        </div>
         <label>
           Description (optional)
           <textarea id="description" name="description" rows="3" maxlength="1000"></textarea>

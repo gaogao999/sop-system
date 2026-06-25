@@ -102,9 +102,16 @@ button, .btn-link {
   border-radius: 12px;
   padding: 16px;
 }
-.sidebar h2 { font-size: 14px; color: var(--muted); margin: 0 0 10px; }
-.category-list { list-style: none; margin: 0 0 14px; padding: 0; }
-.cat-item {
+.sidebar h2 {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.sidebar h2 + .filter-list { margin-bottom: 10px; }
+/* Space between the two filter axes */
+.sidebar .add-filter + h2 { margin-top: 22px; }
+.filter-list { list-style: none; margin: 0 0 8px; padding: 0; }
+.filter-item {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -112,9 +119,9 @@ button, .btn-link {
   border-radius: 8px;
   cursor: pointer;
 }
-.cat-item:hover { background: #f1f5f9; }
-.cat-item.active { background: #e0ecff; color: var(--primary-dark); font-weight: 600; }
-.cat-name { flex: 1; }
+.filter-item:hover { background: #f1f5f9; }
+.filter-item.active { background: #e0ecff; color: var(--primary-dark); font-weight: 600; }
+.filter-name { flex: 1; }
 .count {
   background: #e5e7eb;
   color: var(--muted);
@@ -122,8 +129,8 @@ button, .btn-link {
   padding: 1px 8px;
   font-size: 12px;
 }
-.cat-item.active .count { background: #c7dbff; color: var(--primary-dark); }
-.del-cat {
+.filter-item.active .count { background: #c7dbff; color: var(--primary-dark); }
+.del-item {
   border: none;
   background: transparent;
   color: var(--muted);
@@ -131,16 +138,16 @@ button, .btn-link {
   line-height: 1;
   padding: 0 4px;
 }
-.del-cat:hover { color: var(--danger); }
-.add-category { display: flex; gap: 6px; }
-.add-category input {
+.del-item:hover { color: var(--danger); }
+.add-filter { display: flex; gap: 6px; }
+.add-filter input {
   flex: 1;
   min-width: 0;
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
 }
-.add-category button {
+.add-filter button {
   border: 1px solid var(--line);
   background: #f8fafc;
   border-radius: 8px;
@@ -181,6 +188,16 @@ button, .btn-link {
 .file-desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .file-orig { color: #9ca3af; font-size: 11px; margin-top: 2px; }
 .muted { color: #9ca3af; }
+.tag {
+  display: inline-block;
+  background: #eef2ff;
+  color: var(--primary-dark);
+  border: 1px solid #d6e0ff;
+  border-radius: 6px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
 .empty { text-align: center; color: var(--muted); padding: 28px; }
 .actions { white-space: nowrap; }
 .btn-link {
@@ -213,3 +230,7 @@ dialog input, dialog select, dialog textarea {
   font-family: inherit;
 }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+/* Two side-by-side selects (type + department) in the upload form */
+.field-row { display: flex; gap: 14px; }
+.field-row label { flex: 1; }
+.req { color: var(--danger); }

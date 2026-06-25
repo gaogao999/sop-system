@@ -14,6 +14,20 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
+// --- One-time legacy cleanup ----------------------------------------------
+// Early versions used a single `categories` axis (sop_files.category_id).
+// The schema is now two axes: doc_types + departments. There is no production
+// data to preserve, so if a legacy `sop_files` table is found, drop the old
+// tables and let the fresh schema below recreate everything.
+const sopCols = db.prepare(`PRAGMA table_info(sop_files)`).all();
+const isLegacy = sopCols.some((c) => c.name === 'category_id');
+if (isLegacy) {
+  db.exec(`
+    DROP TABLE IF EXISTS sop_files;
+    DROP TABLE IF EXISTS categories;
+  `);
+}
+
 // --- Schema ----------------------------------------------------------------
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -24,7 +38,14 @@ db.exec(`
     created_at    TEXT NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS categories (
+  -- Document type axis (e.g. QP / SOP / Format) — editable in the UI
+  CREATE TABLE IF NOT EXISTS doc_types (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+  );
+
+  -- Department axis (e.g. Manufacturing / Quality Control) — editable in the UI
+  CREATE TABLE IF NOT EXISTS departments (
     id   INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE
   );
@@ -33,7 +54,10 @@ db.exec(`
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     title         TEXT NOT NULL,
     description   TEXT NOT NULL DEFAULT '',
-    category_id   INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+    -- Both axes are required. Deleting a type/department that still has files
+    -- is blocked in the API, so a plain FK (NO ACTION) is the right behaviour.
+    doc_type_id   INTEGER NOT NULL REFERENCES doc_types(id),
+    department_id INTEGER NOT NULL REFERENCES departments(id),
     stored_name   TEXT NOT NULL,          -- stored file name (within uploads/)
     original_name TEXT NOT NULL,          -- original file name at upload time
     mimetype      TEXT NOT NULL,
@@ -42,8 +66,9 @@ db.exec(`
     uploaded_at   TEXT NOT NULL
   );
 
-  CREATE INDEX IF NOT EXISTS idx_sop_category ON sop_files(category_id);
-  CREATE INDEX IF NOT EXISTS idx_sop_title    ON sop_files(title);
+  CREATE INDEX IF NOT EXISTS idx_sop_doc_type   ON sop_files(doc_type_id);
+  CREATE INDEX IF NOT EXISTS idx_sop_department ON sop_files(department_id);
+  CREATE INDEX IF NOT EXISTS idx_sop_title      ON sop_files(title);
 `);
 
 // --- Seed data -------------------------------------------------------------
@@ -58,10 +83,18 @@ if (userCount === 0) {
   console.log(`Created initial user: ${username} / ${password} (please change after signing in)`);
 }
 
-// Initial categories
-const catCount = db.prepare('SELECT COUNT(*) AS c FROM categories').get().c;
-if (catCount === 0) {
-  const insert = db.prepare('INSERT INTO categories (name) VALUES (?)');
+// Initial document types: QP / SOP / Format (editable in the UI afterwards)
+const typeCount = db.prepare('SELECT COUNT(*) AS c FROM doc_types').get().c;
+if (typeCount === 0) {
+  const insert = db.prepare('INSERT INTO doc_types (name) VALUES (?)');
+  ['QP', 'SOP', 'Format'].forEach((n) => insert.run(n));
+}
+
+// Initial departments (placeholders — rename/replace with your real
+// departments in the UI; they are fully editable)
+const deptCount = db.prepare('SELECT COUNT(*) AS c FROM departments').get().c;
+if (deptCount === 0) {
+  const insert = db.prepare('INSERT INTO departments (name) VALUES (?)');
   ['Manufacturing', 'Quality Control', 'Health & Safety', 'General'].forEach((n) => insert.run(n));
 }
 
