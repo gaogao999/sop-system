@@ -265,6 +265,33 @@ function setCodeFilter(code) {
   loadFiles();
 }
 
+// --- Settings (manage Types / Departments / Customers) ---------------------
+function renderSettings() {
+  document.querySelectorAll('.settings-col').forEach((col) => {
+    const axis = col.dataset.axis;
+    const items = state[axis].items;
+    col.querySelector('.settings-list').innerHTML = items.length
+      ? items
+          .map(
+            (c) => `<li data-id="${c.id}" data-axis="${axis}" data-name="${esc(c.name)}">
+              <span class="s-name">${esc(c.name)}</span>
+              <span class="s-count" title="files">${c.file_count}</span>
+              <button type="button" class="btn-link s-rename">Rename</button>
+              <button type="button" class="btn-link danger s-del">Delete</button>
+            </li>`
+          )
+          .join('')
+      : '<li class="muted">None yet</li>';
+  });
+}
+
+// After an add/rename/delete: refresh that axis everywhere
+async function afterSettingsChange(axis) {
+  await loadAxis(axis); // updates state + sidebar + upload selects
+  renderSettings();
+  await loadFiles(); // names may have changed in the table
+}
+
 function renderSortArrows() {
   document.querySelectorAll('th.sortable').forEach((th) => {
     const arrow = th.querySelector('.arrow');
@@ -495,7 +522,6 @@ function bindEvents() {
     try {
       codeReader = new ZXing.BrowserMultiFormatReader();
       video.hidden = false;
-      $('#scanCamera').textContent = '■ Stop';
       setScanStatus('Point the camera at a code…', '');
       const onResult = (result) => {
         if (!result) return;
@@ -529,7 +555,6 @@ function bindEvents() {
       codeReader = null;
     }
     $('#scanVideo').hidden = true;
-    $('#scanCamera').textContent = '📷 Camera';
   }
 
   $('#scanOpen').addEventListener('click', () => {
@@ -538,13 +563,10 @@ function bindEvents() {
     $('#scanStatus').hidden = true;
     scanDialog.showModal();
     $('#scanInput').focus();
+    startCamera(); // start the camera straight away (no extra click)
   });
   $('#scanClose').addEventListener('click', () => scanDialog.close());
   scanDialog.addEventListener('close', stopCamera); // stop camera however it closes
-  $('#scanCamera').addEventListener('click', () => {
-    if (codeReader) stopCamera();
-    else startCamera();
-  });
 
   $('#scanResults').addEventListener('click', (e) => {
     const li = e.target.closest('.scan-hit');
@@ -557,6 +579,69 @@ function bindEvents() {
     await doLookup(code);
     $('#scanInput').value = '';
     $('#scanInput').focus();
+  });
+
+  // --- Settings (manage Types / Departments / Customers) ------------------
+  const settingsDialog = $('#settingsDialog');
+  $('#settingsOpen').addEventListener('click', () => {
+    renderSettings();
+    settingsDialog.showModal();
+  });
+  $('#settingsClose').addEventListener('click', () => settingsDialog.close());
+  // Rename / delete (delegated)
+  settingsDialog.addEventListener('click', async (e) => {
+    const li = e.target.closest('li[data-id]');
+    if (!li) return;
+    const axis = li.dataset.axis;
+    const id = li.dataset.id;
+    if (e.target.closest('.s-rename')) {
+      const name = prompt('New name:', li.dataset.name);
+      if (name === null) return;
+      const v = name.trim();
+      if (!v || v === li.dataset.name) return;
+      try {
+        await api(`${AXES[axis].api}/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: v }),
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      await afterSettingsChange(axis);
+    } else if (e.target.closest('.s-del')) {
+      if (!confirm(`Delete this ${AXES[axis].label}?`)) return;
+      try {
+        await api(`${AXES[axis].api}/${id}`, { method: 'DELETE' });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      await afterSettingsChange(axis);
+    }
+  });
+  // Add (each column's form)
+  document.querySelectorAll('.settings-col .settings-add').forEach((form) => {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const axis = form.closest('.settings-col').dataset.axis;
+      const input = form.querySelector('input');
+      const v = input.value.trim();
+      if (!v) return;
+      try {
+        await api(AXES[axis].api, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: v }),
+        });
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+      input.value = '';
+      await afterSettingsChange(axis);
+    });
   });
 
   // Upload modal

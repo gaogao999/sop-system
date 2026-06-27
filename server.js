@@ -254,6 +254,19 @@ function registerLookup(basePath, table, fileColumn, label, blockWhenInUse = tru
     res.status(201).json({ id: info.lastInsertRowid, name, file_count: 0 });
   });
 
+  // Rename
+  app.patch(`${basePath}/:id`, requireAuth, (req, res) => {
+    const id = Number(req.params.id);
+    const row = db.prepare(`SELECT id FROM ${table} WHERE id = ?`).get(id);
+    if (!row) return res.status(404).json({ error: `${label} not found` });
+    const name = (req.body.name || '').toString().trim().slice(0, 50);
+    if (!name) return res.status(400).json({ error: `Please enter a ${label} name` });
+    const clash = db.prepare(`SELECT id FROM ${table} WHERE name = ? AND id <> ?`).get(name, id);
+    if (clash) return res.status(409).json({ error: `That ${label} already exists` });
+    db.prepare(`UPDATE ${table} SET name = ? WHERE id = ?`).run(name, id);
+    res.json({ id, name });
+  });
+
   // Delete — required axes refuse while referenced; optional axes unassign
   app.delete(`${basePath}/:id`, requireAuth, (req, res) => {
     const id = Number(req.params.id);

@@ -23,6 +23,7 @@
       </div>
       <div class="user-box">
         <span id="me"></span>
+        <button id="settingsOpen" class="ghost" type="button">⚙ Settings</button>
         <form method="post" action="/logout" class="inline">
           <button class="ghost" type="submit">Sign out</button>
         </form>
@@ -136,17 +137,14 @@
     <dialog id="scanDialog">
       <form id="scanForm" method="dialog">
         <h2>🔎 Find inspection spec (barcode / product no)</h2>
-        <p class="hint">Scan with a barcode reader, type a product number and press Enter, or use the camera (QR / Data Matrix / 1D barcodes).</p>
-        <div class="scan-row">
-          <input
-            type="text"
-            id="scanInput"
-            placeholder="Scan / type a product number…"
-            autocomplete="off"
-            inputmode="text"
-          />
-          <button type="button" id="scanCamera" class="ghost">📷 Camera</button>
-        </div>
+        <p class="hint">Point the camera at a QR / Data Matrix / barcode, or use a barcode reader / type a product number and press Enter.</p>
+        <input
+          type="text"
+          id="scanInput"
+          placeholder="Scan / type a product number…"
+          autocomplete="off"
+          inputmode="text"
+        />
         <video id="scanVideo" class="scan-video" playsinline hidden></video>
         <p id="scanStatus" class="extract-status" hidden></p>
         <ul id="scanResults" class="scan-results"></ul>
@@ -154,6 +152,41 @@
           <button type="button" id="scanClose" class="ghost">Close</button>
         </div>
       </form>
+    </dialog>
+
+    <!-- Settings: manage Types / Departments / Customers -->
+    <dialog id="settingsDialog" class="settings">
+      <div class="settings-head">
+        <h2>⚙ Settings</h2>
+        <button type="button" id="settingsClose" class="ghost">Close</button>
+      </div>
+      <p class="hint">Add, rename or delete the Types, Departments and Customers used across the system.</p>
+      <div class="settings-body">
+        <div class="settings-col" data-axis="type">
+          <h3>Type</h3>
+          <ul class="settings-list"></ul>
+          <form class="settings-add">
+            <input type="text" maxlength="50" placeholder="Add type" />
+            <button type="submit">Add</button>
+          </form>
+        </div>
+        <div class="settings-col" data-axis="department">
+          <h3>Department</h3>
+          <ul class="settings-list"></ul>
+          <form class="settings-add">
+            <input type="text" maxlength="50" placeholder="Add department" />
+            <button type="submit">Add</button>
+          </form>
+        </div>
+        <div class="settings-col" data-axis="customer">
+          <h3>Customer</h3>
+          <ul class="settings-list"></ul>
+          <form class="settings-add">
+            <input type="text" maxlength="50" placeholder="Add customer" />
+            <button type="submit">Add</button>
+          </form>
+        </div>
+      </div>
     </dialog>
 
     <!-- Upload modal -->

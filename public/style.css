@@ -344,6 +344,31 @@ dialog input, dialog select, dialog textarea {
   font-family: inherit;
 }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+/* ---- Settings ---- */
+dialog.settings { width: min(900px, 94vw); padding: 20px 24px; }
+.settings-head { display: flex; align-items: center; justify-content: space-between; }
+.settings-head h2 { margin: 0; }
+.settings-body { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 14px; }
+@media (max-width: 720px) { .settings-body { grid-template-columns: 1fr; } }
+.settings-col h3 { margin: 0 0 8px; font-size: 14px; }
+.settings-list { list-style: none; margin: 0 0 10px; padding: 0; max-height: 50vh; overflow: auto; }
+.settings-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 14px;
+}
+.settings-list .s-name { flex: 1; }
+.settings-list .s-count { background: #e5e7eb; color: var(--muted); border-radius: 999px; padding: 0 8px; font-size: 12px; }
+.settings-list .btn-link { padding: 2px 4px; font-size: 13px; }
+.settings-add { display: flex; gap: 6px; }
+.settings-add input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
+.settings-add button { border: 1px solid var(--line); background: #f8fafc; border-radius: 8px; padding: 0 12px; }
 /* Two side-by-side selects (type + department) in the upload form */
 .field-row { display: flex; gap: 14px; }
 .field-row label { flex: 1; }
@@ -358,9 +383,6 @@ dialog input, dialog select, dialog textarea {
   font-size: 18px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
-.scan-row { display: flex; gap: 8px; align-items: stretch; }
-.scan-row #scanInput { flex: 1; }
-.scan-row #scanCamera { white-space: nowrap; flex: none; }
 .scan-video {
   width: 100%;
   max-height: 50vh;
