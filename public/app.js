@@ -152,40 +152,78 @@ function codeChips(f) {
 }
 
 // Open a document in the in-app preview (no download needed)
-function openView(id, name, pdf) {
-  const url = `/api/files/${id}/download?inline=1`;
+let viewBlobUrl = null; // object URL of the document currently previewed
+function resetViewer() {
+  const frame = $('#viewFrame');
+  frame.onload = null;
+  frame.removeAttribute('src');
+  if (viewBlobUrl) {
+    URL.revokeObjectURL(viewBlobUrl);
+    viewBlobUrl = null;
+  }
+}
+
+async function openView(id, name, pdf) {
+  const inlineUrl = `/api/files/${id}/download?inline=1`;
   $('#viewTitle').textContent = name || 'Document';
   $('#viewDownload').href = `/api/files/${id}/download`;
-  $('#viewNewTab').href = url;
+  $('#viewNewTab').href = inlineUrl;
   const frame = $('#viewFrame');
   const notice = $('#viewNotice');
   const loading = $('#viewLoading');
-  if (pdf) {
-    notice.hidden = true;
-    $('#viewNewTab').hidden = false;
-    frame.hidden = false;
-    loading.hidden = false;
-    frame.onload = () => {
-      loading.hidden = true;
-    };
-    frame.src = url;
-  } else {
+  resetViewer();
+  $('#viewDialog').showModal();
+
+  if (!pdf) {
     // Office files can't be rendered inline by the browser
     loading.hidden = true;
     frame.hidden = true;
-    frame.removeAttribute('src');
     $('#viewNewTab').hidden = true;
     notice.hidden = false;
     notice.textContent =
       'This file type cannot be previewed in the browser. Use Download to open it.';
+    return;
   }
-  $('#viewDialog').showModal();
+
+  // Fetch first, so a missing file shows a clear message instead of a blank box,
+  // and render from a blob URL (reliable in-browser PDF display).
+  notice.hidden = true;
+  frame.hidden = false;
+  $('#viewNewTab').hidden = false;
+  loading.hidden = false;
+  loading.textContent = 'Loading…';
+  try {
+    const res = await fetch(inlineUrl, { headers: { Accept: 'application/pdf' } });
+    if (res.status === 401) {
+      location.href = '/login.html';
+      return;
+    }
+    if (!res.ok) {
+      frame.hidden = true;
+      loading.hidden = true;
+      notice.hidden = false;
+      notice.textContent =
+        res.status === 410
+          ? 'The file is missing on the server. On the free hosting plan, uploaded files are erased whenever the app restarts — re-upload it, or switch to persistent storage (local Docker / paid plan).'
+          : `Could not load the document (HTTP ${res.status}).`;
+      return;
+    }
+    const blob = await res.blob();
+    viewBlobUrl = URL.createObjectURL(blob);
+    frame.onload = () => {
+      loading.hidden = true;
+    };
+    frame.src = viewBlobUrl;
+  } catch (err) {
+    frame.hidden = true;
+    loading.hidden = true;
+    notice.hidden = false;
+    notice.textContent = `Could not load the document (${err.message}).`;
+  }
 }
 
 function closeView() {
-  const frame = $('#viewFrame');
-  frame.onload = null;
-  frame.removeAttribute('src'); // stop loading / free memory
+  resetViewer();
   $('#viewDialog').close();
 }
 
