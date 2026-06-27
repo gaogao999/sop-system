@@ -156,21 +156,37 @@ function openView(id, name, pdf) {
   const url = `/api/files/${id}/download?inline=1`;
   $('#viewTitle').textContent = name || 'Document';
   $('#viewDownload').href = `/api/files/${id}/download`;
+  $('#viewNewTab').href = url;
   const frame = $('#viewFrame');
   const notice = $('#viewNotice');
+  const loading = $('#viewLoading');
   if (pdf) {
     notice.hidden = true;
+    $('#viewNewTab').hidden = false;
     frame.hidden = false;
+    loading.hidden = false;
+    frame.onload = () => {
+      loading.hidden = true;
+    };
     frame.src = url;
   } else {
     // Office files can't be rendered inline by the browser
+    loading.hidden = true;
     frame.hidden = true;
-    frame.src = 'about:blank';
+    frame.removeAttribute('src');
+    $('#viewNewTab').hidden = true;
     notice.hidden = false;
     notice.textContent =
       'This file type cannot be previewed in the browser. Use Download to open it.';
   }
   $('#viewDialog').showModal();
+}
+
+function closeView() {
+  const frame = $('#viewFrame');
+  frame.onload = null;
+  frame.removeAttribute('src'); // stop loading / free memory
+  $('#viewDialog').close();
 }
 
 // --- File list -------------------------------------------------------------
@@ -350,10 +366,14 @@ function bindEvents() {
     if (view) openView(view.dataset.id, view.dataset.name, view.dataset.pdf === '1');
   });
 
-  // In-app preview
-  $('#viewClose').addEventListener('click', () => {
-    $('#viewFrame').src = 'about:blank';
-    $('#viewDialog').close();
+  // In-app preview: close via button, Escape, or clicking the backdrop
+  $('#viewClose').addEventListener('click', closeView);
+  $('#viewDialog').addEventListener('cancel', (e) => {
+    e.preventDefault();
+    closeView();
+  });
+  $('#viewDialog').addEventListener('click', (e) => {
+    if (e.target === $('#viewDialog')) closeView(); // clicked outside the content
   });
   // Clear the active product-code filter
   $('#activeCode').addEventListener('click', (e) => {

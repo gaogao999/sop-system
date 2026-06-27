@@ -123,10 +123,12 @@
       <div class="viewer-head">
         <span id="viewTitle" class="viewer-title"></span>
         <span class="viewer-actions">
+          <a id="viewNewTab" class="btn-link" href="#" target="_blank" rel="noopener">↗ Open in new tab</a>
           <a id="viewDownload" class="btn-link" href="#">⬇ Download</a>
-          <button type="button" id="viewClose" class="ghost">Close</button>
+          <button type="button" id="viewClose" class="ghost">✕ Close</button>
         </span>
       </div>
+      <p id="viewLoading" class="viewer-loading" hidden>Loading… if it stays blank, use “Open in new tab”.</p>
       <iframe id="viewFrame" class="viewer-frame" title="Document preview"></iframe>
       <p id="viewNotice" class="viewer-notice" hidden></p>
     </dialog>
