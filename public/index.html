@@ -18,31 +18,43 @@
     </header>
 
     <div class="layout">
-      <!-- Sidebar: two filter axes -->
+      <!-- Sidebar: collapsible filter axes (collapsed by default) -->
       <aside class="sidebar">
         <!-- Document type axis (QP / SOP / Format) -->
-        <h2>Type (種別)</h2>
-        <ul id="typeList" class="filter-list"></ul>
-        <form id="typeForm" class="add-filter">
-          <input type="text" id="newType" placeholder="New type" maxlength="50" />
-          <button type="submit">Add</button>
-        </form>
+        <section class="axis-section collapsed">
+          <h2 class="axis-toggle">Type (種別) <span class="chevron">▸</span></h2>
+          <div class="axis-body">
+            <ul id="typeList" class="filter-list"></ul>
+            <form id="typeForm" class="add-filter">
+              <input type="text" id="newType" placeholder="New type" maxlength="50" />
+              <button type="submit">Add</button>
+            </form>
+          </div>
+        </section>
 
         <!-- Department axis -->
-        <h2>Department (部署)</h2>
-        <ul id="departmentList" class="filter-list"></ul>
-        <form id="departmentForm" class="add-filter">
-          <input type="text" id="newDepartment" placeholder="New department" maxlength="50" />
-          <button type="submit">Add</button>
-        </form>
+        <section class="axis-section collapsed">
+          <h2 class="axis-toggle">Department (部署) <span class="chevron">▸</span></h2>
+          <div class="axis-body">
+            <ul id="departmentList" class="filter-list"></ul>
+            <form id="departmentForm" class="add-filter">
+              <input type="text" id="newDepartment" placeholder="New department" maxlength="50" />
+              <button type="submit">Add</button>
+            </form>
+          </div>
+        </section>
 
         <!-- Customer axis (optional) -->
-        <h2>Customer (顧客)</h2>
-        <ul id="customerList" class="filter-list"></ul>
-        <form id="customerForm" class="add-filter">
-          <input type="text" id="newCustomer" placeholder="New customer" maxlength="50" />
-          <button type="submit">Add</button>
-        </form>
+        <section class="axis-section collapsed">
+          <h2 class="axis-toggle">Customer (顧客) <span class="chevron">▸</span></h2>
+          <div class="axis-body">
+            <ul id="customerList" class="filter-list"></ul>
+            <form id="customerForm" class="add-filter">
+              <input type="text" id="newCustomer" placeholder="New customer" maxlength="50" />
+              <button type="submit">Add</button>
+            </form>
+          </div>
+        </section>
       </aside>
 
       <main class="content">

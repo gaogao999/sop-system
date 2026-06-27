@@ -107,9 +107,23 @@ button, .btn-link {
   color: var(--muted);
   margin: 0 0 10px;
 }
-.sidebar h2 + .filter-list { margin-bottom: 10px; }
-/* Space between the two filter axes */
-.sidebar .add-filter + h2 { margin-top: 22px; }
+/* Collapsible axis sections */
+.axis-section + .axis-section { margin-top: 6px; }
+.axis-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding: 6px 4px;
+  margin: 0;
+  border-radius: 6px;
+}
+.axis-toggle:hover { background: #f1f5f9; }
+.axis-toggle .chevron { transition: transform 0.15s; font-size: 12px; }
+.axis-section:not(.collapsed) .axis-toggle .chevron { transform: rotate(90deg); }
+.axis-section.collapsed .axis-body { display: none; }
+.axis-body { padding-top: 6px; }
 .filter-list { list-style: none; margin: 0 0 8px; padding: 0; }
 .filter-item {
   display: flex;

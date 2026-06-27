@@ -274,6 +274,11 @@ function bindAddForm(formSel, inputSel, key) {
 }
 
 function bindEvents() {
+  // Collapse / expand the sidebar filter sections (collapsed by default)
+  document.querySelectorAll('.axis-toggle').forEach((h) => {
+    h.addEventListener('click', () => h.closest('.axis-section').classList.toggle('collapsed'));
+  });
+
   bindAxisEvents('type');
   bindAxisEvents('department');
   bindAxisEvents('customer');
