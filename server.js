@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import { mkdirSync, existsSync, unlinkSync, createReadStream } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import db from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -68,6 +69,61 @@ const upload = multer({
     cb(new Error('Only PDF, Excel or Word files can be uploaded'));
   },
 });
+
+// --- PDF header extraction (best-effort, experimental) ---------------------
+// These quality documents (Kaga Electronics) carry a structured header:
+//   Document No.  e.g. QP-QC-04 / SOP-QC-0021   (= <type>-<department>-<serial>)
+//   Title / Description, Revision, Date, and for SOPs Model / Product No.
+// We read page 1 with `pdftotext -layout` and pull the fields out with
+// regexes. The result only ever pre-fills the form — the user reviews/edits
+// before saving — so imperfect extraction is acceptable.
+
+// A -layout dump separates columns with runs of spaces; keep only the first
+// column of a captured line and collapse the rest.
+const firstCol = (s) =>
+  (s || '')
+    .split(/\s{2,}/)
+    .map((x) => x.trim())
+    .filter(Boolean)[0] || '';
+
+function extractHeader(filePath, originalName, mimetype) {
+  const out = { doc_no: '', revision: '', doc_date: '', title: '', model: '', product_no: '' };
+
+  // Revision is most reliable from the file name (e.g. ..._Rev.16_...)
+  const revFromName = (originalName || '').match(/Rev\.?\s*(\d+)/i);
+  if (revFromName) out.revision = revFromName[1];
+
+  if (mimetype !== 'application/pdf') return out;
+
+  let text = '';
+  try {
+    text = execFileSync('pdftotext', ['-f', '1', '-l', '1', '-layout', filePath, '-'], {
+      encoding: 'utf8',
+      maxBuffer: 8 * 1024 * 1024,
+    });
+  } catch {
+    return out; // pdftotext missing or failed — fall back to name-only result
+  }
+
+  const docNo = text.match(/\b([A-Z]{2,4}-[A-Z]{2,4}-\d{2,5})\b/);
+  if (docNo) out.doc_no = docNo[1];
+
+  // First date that looks like 16-May-25 is the document's own (header) date
+  const date = text.match(/\b(\d{1,2}-[A-Za-z]{3}-\d{2,4})\b/);
+  if (date) out.doc_date = date[1];
+
+  // Title (QP) or Description (SOP) — whichever the header uses
+  const title = text.match(/(?:^|\n)\s*Title\s+(.+)/);
+  const desc = text.match(/Description\s*:?\s*(.+)/);
+  out.title = firstCol(title ? title[1] : desc ? desc[1] : '');
+
+  const model = text.match(/Model\s*:?\s*(.+)/);
+  if (model) out.model = firstCol(model[1]);
+  const productNo = text.match(/Product\s*No\.?\s*:?\s*(.+)/);
+  if (productNo) out.product_no = firstCol(productNo[1]);
+
+  return out;
+}
 
 // --- Auth middleware -------------------------------------------------------
 const requireAuth = (req, res, next) => {
@@ -150,6 +206,32 @@ function registerLookup(basePath, table, fileColumn, label) {
 registerLookup('/api/doc-types', 'doc_types', 'doc_type_id', 'document type');
 registerLookup('/api/departments', 'departments', 'department_id', 'department');
 
+// --- PDF header auto-extract (experimental) --------------------------------
+// Accepts a file, reads its header, and returns the fields so the upload form
+// can pre-fill them. The file is NOT kept — it is parsed and deleted. The real
+// upload happens separately via POST /api/files.
+app.post('/api/extract', requireAuth, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'Please choose a file' });
+    const path = join(UPLOAD_DIR, req.file.filename);
+    let fields;
+    try {
+      fields = extractHeader(path, req.file.originalname, req.file.mimetype);
+    } finally {
+      try {
+        unlinkSync(path);
+      } catch {
+        /* ignore */
+      }
+    }
+    // Split the document number into its type / department codes so the client
+    // can preselect the matching dropdowns (e.g. SOP-QC-0021 -> SOP, QC).
+    const parts = (fields.doc_no || '').split('-');
+    res.json({ ...fields, type_code: parts[0] || '', dept_code: parts[1] || '' });
+  });
+});
+
 // --- Static files ----------------------------------------------------------
 // The sign-in page and static assets are served without auth
 app.get('/login.html', (req, res) => res.sendFile(join(__dirname, 'public', 'login.html')));
@@ -163,6 +245,7 @@ const fileSelect = `
   SELECT f.id, f.title, f.description,
          f.doc_type_id, t.name AS doc_type_name,
          f.department_id, d.name AS department_name,
+         f.doc_no, f.revision, f.doc_date, f.model, f.product_no,
          f.original_name, f.mimetype, f.size, f.uploaded_at,
          u.username AS uploaded_by_name
   FROM sop_files f
@@ -171,16 +254,18 @@ const fileSelect = `
   LEFT JOIN users u ON u.id = f.uploaded_by
 `;
 
-// List + search (q: title/description/original name; type/department: axis ids)
+// List + search (q: title/description/doc no/file name; type/department: axis ids)
 app.get('/api/files', requireAuth, (req, res) => {
   const q = (req.query.q || '').toString().trim();
   const where = [];
   const params = [];
 
   if (q) {
-    where.push('(f.title LIKE ? OR f.description LIKE ? OR f.original_name LIKE ?)');
+    where.push(
+      '(f.title LIKE ? OR f.description LIKE ? OR f.doc_no LIKE ? OR f.original_name LIKE ?)'
+    );
     const like = `%${q}%`;
-    params.push(like, like, like);
+    params.push(like, like, like, like);
   }
   // Each axis filters independently; 'all'/empty means no filter on that axis
   const axisFilter = (value, column) => {
@@ -223,18 +308,29 @@ app.post('/api/files', requireAuth, (req, res) => {
 
     const title = (req.body.title || req.file.originalname).toString().trim().slice(0, 200);
     const description = (req.body.description || '').toString().trim().slice(0, 1000);
+    const str = (v, n) => (v || '').toString().trim().slice(0, n);
+    const docNo = str(req.body.doc_no, 100);
+    const revision = str(req.body.revision, 50);
+    const docDate = str(req.body.doc_date, 50);
+    const model = str(req.body.model, 200);
+    const productNo = str(req.body.product_no, 500);
 
     const info = db
       .prepare(
         `INSERT INTO sop_files
-          (title, description, doc_type_id, department_id, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (title, description, doc_type_id, department_id, doc_no, revision, doc_date, model, product_no, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title,
         description,
         docTypeId,
         departmentId,
+        docNo,
+        revision,
+        docDate,
+        model,
+        productNo,
         req.file.filename,
         req.file.originalname,
         req.file.mimetype,

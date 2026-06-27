@@ -58,6 +58,12 @@ db.exec(`
     -- is blocked in the API, so a plain FK (NO ACTION) is the right behaviour.
     doc_type_id   INTEGER NOT NULL REFERENCES doc_types(id),
     department_id INTEGER NOT NULL REFERENCES departments(id),
+    -- Header metadata (read from the document; all optional)
+    doc_no        TEXT NOT NULL DEFAULT '',   -- e.g. QP-QC-04 / SOP-QC-0021
+    revision      TEXT NOT NULL DEFAULT '',   -- e.g. 16
+    doc_date      TEXT NOT NULL DEFAULT '',   -- the document's own date, as printed
+    model         TEXT NOT NULL DEFAULT '',   -- e.g. TOTO : Operation Panel (SOP)
+    product_no    TEXT NOT NULL DEFAULT '',   -- e.g. DD360 / DD370 … (SOP)
     stored_name   TEXT NOT NULL,          -- stored file name (within uploads/)
     original_name TEXT NOT NULL,          -- original file name at upload time
     mimetype      TEXT NOT NULL,
@@ -69,7 +75,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sop_doc_type   ON sop_files(doc_type_id);
   CREATE INDEX IF NOT EXISTS idx_sop_department ON sop_files(department_id);
   CREATE INDEX IF NOT EXISTS idx_sop_title      ON sop_files(title);
+  CREATE INDEX IF NOT EXISTS idx_sop_doc_no     ON sop_files(doc_no);
 `);
+
+// --- Migration: add header-metadata columns to older databases ----------
+// (CREATE TABLE IF NOT EXISTS never alters an existing table, so add any
+// missing columns here. New rows default to '' — safe and idempotent.)
+const existingCols = new Set(db.prepare(`PRAGMA table_info(sop_files)`).all().map((c) => c.name));
+for (const col of ['doc_no', 'revision', 'doc_date', 'model', 'product_no']) {
+  if (!existingCols.has(col)) {
+    db.exec(`ALTER TABLE sop_files ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
+  }
+}
 
 // --- Seed data -------------------------------------------------------------
 // Initial admin user (override via env vars; defaults to admin / admin123)

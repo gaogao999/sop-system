@@ -185,6 +185,7 @@ button, .btn-link {
 .file-table tr:last-child td { border-bottom: none; }
 .file-table .icon { font-size: 20px; }
 .file-title { font-weight: 600; }
+.doc-no { font-weight: 600; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 .file-desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
 .file-orig { color: #9ca3af; font-size: 11px; margin-top: 2px; }
 .muted { color: #9ca3af; }
@@ -234,3 +235,7 @@ dialog input, dialog select, dialog textarea {
 .field-row { display: flex; gap: 14px; }
 .field-row label { flex: 1; }
 .req { color: var(--danger); }
+.hint { color: var(--muted); font-weight: 400; font-size: 12px; }
+.extract-status { font-size: 13px; margin: -4px 0 0; color: var(--muted); }
+.extract-status.ok { color: #047857; }
+.extract-status.warn { color: #b45309; }

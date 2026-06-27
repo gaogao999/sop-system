@@ -51,6 +51,7 @@
             <thead>
               <tr>
                 <th></th>
+                <th>Doc No. / Rev</th>
                 <th>Title</th>
                 <th>Type (種別)</th>
                 <th>Department (部署)</th>
@@ -74,9 +75,10 @@
           File (PDF / Excel / Word)
           <input type="file" id="file" name="file" accept=".pdf,.xls,.xlsx,.doc,.docx" required />
         </label>
+        <p id="extractStatus" class="extract-status" hidden></p>
         <label>
-          Title
-          <input type="text" id="title" name="title" placeholder="Defaults to the file name if left blank" maxlength="200" />
+          Document No. <span class="hint">(auto-fills Type &amp; Department, e.g. SOP-QC-0021)</span>
+          <input type="text" id="docNo" name="doc_no" placeholder="QP-QC-04" maxlength="100" />
         </label>
         <div class="field-row">
           <label>
@@ -89,8 +91,30 @@
           </label>
         </div>
         <label>
+          Title
+          <input type="text" id="title" name="title" placeholder="Defaults to the file name if left blank" maxlength="200" />
+        </label>
+        <div class="field-row">
+          <label>
+            Revision (Rev)
+            <input type="text" id="revision" name="revision" placeholder="16" maxlength="50" />
+          </label>
+          <label>
+            Document date
+            <input type="text" id="docDate" name="doc_date" placeholder="16-May-25" maxlength="50" />
+          </label>
+        </div>
+        <label>
+          Model <span class="hint">(SOP, optional)</span>
+          <input type="text" id="model" name="model" maxlength="200" />
+        </label>
+        <label>
+          Product No. <span class="hint">(SOP, optional)</span>
+          <input type="text" id="productNo" name="product_no" maxlength="500" />
+        </label>
+        <label>
           Description (optional)
-          <textarea id="description" name="description" rows="3" maxlength="1000"></textarea>
+          <textarea id="description" name="description" rows="2" maxlength="1000"></textarea>
         </label>
         <p id="uploadError" class="error" hidden></p>
         <div class="dialog-actions">

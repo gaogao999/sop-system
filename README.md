@@ -7,7 +7,10 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 - **Sign in** (`POST /checklogin` with `username` / `password` sent as a form; session cookie is `connect.sid`)
 - **File upload** (PDF / Excel `.xls`/`.xlsx` / Word `.doc`/`.docx`, up to 50 MB)
 - **Two classification axes** — **Type (種別)** (QP / SOP / Format) and **Department (部署)**. Both are required on upload and fully editable (add / delete). A type/department that still has files cannot be deleted.
-- **Filter by both axes at once** (Type × Department), plus **search** (partial match on title, description and original file name)
+- **Header metadata** — Document No., Revision, Document date, Model and Product No. are stored alongside each file.
+- **Document-number auto-fill** — the document number encodes `<type>-<department>-<serial>` (e.g. `SOP-QC-0021`), so typing it auto-selects the matching Type and Department.
+- **Experimental PDF header extraction** — on upload, page 1 of a PDF is parsed (`pdftotext`) to pre-fill the document number, title, revision, date, model and product number. The result is editable and reviewed before saving; if `pdftotext` is unavailable it degrades to manual entry.
+- **Filter by both axes at once** (Type × Department), plus **search** (partial match on title, description, document number and original file name)
 - **File list, download and delete**
 
 ## Stack
@@ -18,6 +21,7 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 | Session | express-session + SQLite store (cookie name `connect.sid`, survives restarts) |
 | Auth | bcryptjs password hashing |
 | Upload | multer (validates extension + MIME type) |
+| PDF extraction | `pdftotext` (poppler-utils) — optional; bundled in the Docker image |
 | Database | SQLite (better-sqlite3) |
 | UI | HTML / CSS / vanilla JS (no build step) |
 
@@ -39,6 +43,11 @@ npm start
 ```
 
 Then open http://localhost:3000 (you are redirected to the sign-in page if not logged in).
+
+> For the experimental PDF header auto-fill to work locally, install `pdftotext`
+> (`apt-get install poppler-utils` / `brew install poppler`). It is already
+> included in the Docker image. Without it, upload still works — you just fill
+> the header fields in manually.
 
 ### Initial login
 
@@ -80,7 +89,8 @@ node seed.js <username> <password> "Display Name"
 | POST | `/api/departments` | Add department (`{name}`) |
 | DELETE | `/api/departments/:id` | Delete department (blocked with `409` while files still use it) |
 | GET | `/api/files?q=&type=&department=` | List / search files (filter by either or both axes) |
-| POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`**; the last two are required) |
+| POST | `/api/extract` | Parse an uploaded PDF's header and return `doc_no` / `title` / `revision` / `doc_date` / `model` / `product_no` (+ `type_code` / `dept_code`). The file is parsed and discarded, not stored. |
+| POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`** (required), and optional `doc_no`, `revision`, `doc_date`, `model`, `product_no`) |
 | GET | `/api/files/:id/download` | Download |
 | DELETE | `/api/files/:id` | Delete |
 | GET | `/healthz` | Health check |

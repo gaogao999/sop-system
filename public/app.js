@@ -107,7 +107,7 @@ function renderFiles(files) {
   $('#listInfo').textContent = `${files.length} file${files.length === 1 ? '' : 's'}`;
   const tbody = $('#fileRows');
   if (files.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty">No matching files</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">No matching files</td></tr>`;
     return;
   }
   tbody.innerHTML = files
@@ -115,7 +115,14 @@ function renderFiles(files) {
       (f) => `<tr>
         <td class="icon">${iconFor(f.original_name)}</td>
         <td>
+          <div class="doc-no">${f.doc_no ? esc(f.doc_no) : '<span class="muted">-</span>'}</div>
+          ${f.revision ? `<div class="file-orig">Rev.${esc(f.revision)}</div>` : ''}
+          ${f.doc_date ? `<div class="file-orig">${esc(f.doc_date)}</div>` : ''}
+        </td>
+        <td>
           <div class="file-title">${esc(f.title)}</div>
+          ${f.model ? `<div class="file-desc">${esc(f.model)}</div>` : ''}
+          ${f.product_no ? `<div class="file-desc">${esc(f.product_no)}</div>` : ''}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
         </td>
@@ -211,6 +218,7 @@ function bindEvents() {
   $('#uploadOpen').addEventListener('click', () => {
     $('#uploadForm').reset();
     $('#uploadError').hidden = true;
+    $('#extractStatus').hidden = true;
     // Preselect whichever axes are currently filtered
     for (const key of Object.keys(AXES)) {
       if (state[key].active !== 'all') $(AXES[key].uploadEl).value = state[key].active;
@@ -218,6 +226,55 @@ function bindEvents() {
     dialog.showModal();
   });
   $('#uploadCancel').addEventListener('click', () => dialog.close());
+
+  // Auto-select Type & Department from a document number (e.g. SOP-QC-0021)
+  const matchAxisByName = (key, name) => {
+    if (!name) return;
+    const hit = state[key].items.find(
+      (c) => c.name.toLowerCase() === name.trim().toLowerCase()
+    );
+    if (hit) $(AXES[key].uploadEl).value = hit.id;
+  };
+  const applyDocNo = () => {
+    const parts = $('#docNo').value.split('-');
+    matchAxisByName('type', parts[0]);
+    matchAxisByName('department', parts[1]);
+  };
+  $('#docNo').addEventListener('input', applyDocNo);
+
+  // Auto-extract header fields when a file is chosen (experimental, best-effort)
+  $('#file').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const status = $('#extractStatus');
+    status.hidden = false;
+    status.className = 'extract-status';
+    status.textContent = 'Reading header…';
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const meta = await api('/api/extract', { method: 'POST', body: fd });
+      // Only fill empty fields so we never clobber what the user typed
+      const setIf = (sel, val) => {
+        if (val && !$(sel).value) $(sel).value = val;
+      };
+      setIf('#docNo', meta.doc_no);
+      setIf('#title', meta.title);
+      setIf('#revision', meta.revision);
+      setIf('#docDate', meta.doc_date);
+      setIf('#model', meta.model);
+      setIf('#productNo', meta.product_no);
+      applyDocNo();
+      const found = meta.doc_no || meta.title || meta.revision;
+      status.textContent = found
+        ? '✓ Auto-filled from the document — please review before saving.'
+        : 'No header fields detected — please fill them in.';
+      status.classList.add(found ? 'ok' : 'warn');
+    } catch (err) {
+      status.textContent = `Auto-fill skipped (${err.message}) — please fill them in.`;
+      status.classList.add('warn');
+    }
+  });
 
   $('#uploadForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -229,6 +286,11 @@ function bindEvents() {
     fd.append('description', $('#description').value);
     fd.append('doc_type_id', $('#uploadType').value);
     fd.append('department_id', $('#uploadDepartment').value);
+    fd.append('doc_no', $('#docNo').value);
+    fd.append('revision', $('#revision').value);
+    fd.append('doc_date', $('#docDate').value);
+    fd.append('model', $('#model').value);
+    fd.append('product_no', $('#productNo').value);
     try {
       await api('/api/files', { method: 'POST', body: fd });
       dialog.close();
