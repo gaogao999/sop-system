@@ -34,6 +34,7 @@ const state = {
   code: '', // exact product-code filter, '' = none
   productNo: '', // sidebar Product No. partial filter
   showOld: false, // include superseded revisions
+  expiredOnly: false, // only documents due for review (>2 years old)
   sort: { key: 'uploaded_at', dir: 'desc' }, // column sort
 };
 let lastFiles = []; // most recent server result, re-sorted on header click
@@ -60,6 +61,25 @@ const esc = (s) =>
 // Browsers can render PDFs inline; Office files (xls/doc) can't be previewed
 const isPdf = (f) =>
   f.mimetype === 'application/pdf' || /\.pdf$/i.test(f.original_name || '');
+
+// Parse the document's printed date (e.g. "18-Sep-25", "16-May-2025"); returns
+// a Date or null. Used to flag documents due for review (older than 2 years).
+const MONTHS = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
+function parseDocDate(s) {
+  const m = (s || '').match(/(\d{1,2})[-/ ]([A-Za-z]{3})[-/ ](\d{2,4})/);
+  if (!m) return null;
+  const mon = MONTHS[m[2].toLowerCase()];
+  if (mon === undefined) return null;
+  let year = Number(m[3]);
+  if (year < 100) year += 2000;
+  return new Date(year, mon, Number(m[1]));
+}
+const TWO_YEARS_MS = 2 * 365.25 * 24 * 60 * 60 * 1000;
+// A document is "due for review" if its own date (or upload date) is >2 years ago
+function isExpired(f) {
+  const base = parseDocDate(f.doc_date) || new Date(f.uploaded_at);
+  return Date.now() - base.getTime() > TWO_YEARS_MS;
+}
 
 async function api(path, opts) {
   const res = await fetch(path, { headers: { Accept: 'application/json' }, ...opts });
@@ -305,7 +325,11 @@ function renderSortArrows() {
 function renderFiles(files) {
   renderSortArrows();
   files = sortFiles(files);
-  $('#listInfo').textContent = `${files.length} file${files.length === 1 ? '' : 's'}`;
+  if (state.expiredOnly) files = files.filter(isExpired);
+  const dueCount = files.reduce((n, f) => n + (isExpired(f) ? 1 : 0), 0);
+  $('#listInfo').textContent =
+    `${files.length} file${files.length === 1 ? '' : 's'}` +
+    (dueCount ? ` · ${dueCount} due for review` : '');
   const tbody = $('#fileRows');
   if (files.length === 0) {
     tbody.innerHTML = `<tr><td colspan="10" class="empty">No matching files</td></tr>`;
@@ -326,6 +350,7 @@ function renderFiles(files) {
                 : ''
               : `<span class="rev-badge old">Superseded</span>`
           }
+          ${isExpired(f) ? '<span class="rev-badge due">⚠ Review due (&gt;2y)</span>' : ''}
         </td>
         <td>
           <button class="file-title link-title view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">${esc(f.title)}</button>
@@ -432,6 +457,12 @@ function bindEvents() {
   $('#showOld').addEventListener('change', (e) => {
     state.showOld = e.target.checked;
     loadFiles();
+  });
+
+  // Show only documents due for review (>2 years) — client-side filter
+  $('#expiredOnly').addEventListener('change', (e) => {
+    state.expiredOnly = e.target.checked;
+    renderFiles(lastFiles);
   });
 
   // Click a product-code chip -> filter the list by that exact code

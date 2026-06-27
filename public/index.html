@@ -91,9 +91,14 @@
           <div id="activeCode" class="active-code" hidden></div>
           <div class="list-head">
             <p id="listInfo" class="list-info"></p>
-            <label class="show-old">
-              <input type="checkbox" id="showOld" /> Show old revisions
-            </label>
+            <div class="list-toggles">
+              <label class="show-old">
+                <input type="checkbox" id="expiredOnly" /> Review due (&gt;2y)
+              </label>
+              <label class="show-old">
+                <input type="checkbox" id="showOld" /> Show old revisions
+              </label>
+            </div>
           </div>
           <div class="table-wrap">
           <table class="file-table">
