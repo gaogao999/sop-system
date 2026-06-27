@@ -50,19 +50,28 @@ db.exec(`
     name TEXT NOT NULL UNIQUE
   );
 
+  -- Customer axis (e.g. TOTO) — editable in the UI; optional on a file
+  CREATE TABLE IF NOT EXISTS customers (
+    id   INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+  );
+
   CREATE TABLE IF NOT EXISTS sop_files (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     title         TEXT NOT NULL,
     description   TEXT NOT NULL DEFAULT '',
-    -- Both axes are required. Deleting a type/department that still has files
-    -- is blocked in the API, so a plain FK (NO ACTION) is the right behaviour.
+    -- Type & department are required. Deleting a type/department that still has
+    -- files is blocked in the API, so a plain FK (NO ACTION) is the right choice.
     doc_type_id   INTEGER NOT NULL REFERENCES doc_types(id),
     department_id INTEGER NOT NULL REFERENCES departments(id),
+    -- Customer is optional; deleting a customer just unassigns its files.
+    customer_id   INTEGER REFERENCES customers(id) ON DELETE SET NULL,
     -- Header metadata (read from the document; all optional)
     doc_no        TEXT NOT NULL DEFAULT '',   -- e.g. QP-QC-04 / SOP-QC-0021
     revision      TEXT NOT NULL DEFAULT '',   -- e.g. 16
     doc_date      TEXT NOT NULL DEFAULT '',   -- the document's own date, as printed
-    model         TEXT NOT NULL DEFAULT '',   -- e.g. TOTO : Operation Panel (SOP)
+    model         TEXT NOT NULL DEFAULT '',   -- raw Model line, e.g. TOTO : Operation Panel
+    product_name  TEXT NOT NULL DEFAULT '',   -- 品名, e.g. Operation Panel _Domestic
     product_no    TEXT NOT NULL DEFAULT '',   -- e.g. DD360 / DD370 … (SOP)
     stored_name   TEXT NOT NULL,          -- stored file name (within uploads/)
     original_name TEXT NOT NULL,          -- original file name at upload time
@@ -74,17 +83,27 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_sop_doc_type   ON sop_files(doc_type_id);
   CREATE INDEX IF NOT EXISTS idx_sop_department ON sop_files(department_id);
+  CREATE INDEX IF NOT EXISTS idx_sop_customer   ON sop_files(customer_id);
   CREATE INDEX IF NOT EXISTS idx_sop_title      ON sop_files(title);
   CREATE INDEX IF NOT EXISTS idx_sop_doc_no     ON sop_files(doc_no);
 `);
 
-// --- Migration: add header-metadata columns to older databases ----------
+// --- Migration: add newer columns to older databases --------------------
 // (CREATE TABLE IF NOT EXISTS never alters an existing table, so add any
-// missing columns here. New rows default to '' — safe and idempotent.)
+// missing columns here. Safe and idempotent.)
 const existingCols = new Set(db.prepare(`PRAGMA table_info(sop_files)`).all().map((c) => c.name));
-for (const col of ['doc_no', 'revision', 'doc_date', 'model', 'product_no']) {
+const newCols = {
+  doc_no: `TEXT NOT NULL DEFAULT ''`,
+  revision: `TEXT NOT NULL DEFAULT ''`,
+  doc_date: `TEXT NOT NULL DEFAULT ''`,
+  model: `TEXT NOT NULL DEFAULT ''`,
+  product_name: `TEXT NOT NULL DEFAULT ''`,
+  product_no: `TEXT NOT NULL DEFAULT ''`,
+  customer_id: `INTEGER REFERENCES customers(id)`,
+};
+for (const [col, ddl] of Object.entries(newCols)) {
   if (!existingCols.has(col)) {
-    db.exec(`ALTER TABLE sop_files ADD COLUMN ${col} TEXT NOT NULL DEFAULT ''`);
+    db.exec(`ALTER TABLE sop_files ADD COLUMN ${col} ${ddl}`);
   }
 }
 
@@ -116,6 +135,12 @@ if (deptCount === 0) {
     'CD', 'CS', 'DC', 'EC', 'GA', 'HR', 'IT', 'MC', 'MI', 'MR',
     'PC', 'PE', 'PQA', 'PU', 'QC', 'SCM', 'SL', 'SM', 'WH',
   ].forEach((n) => insert.run(n));
+}
+
+// Initial customers (just TOTO to bootstrap; add the rest in the UI)
+const custCount = db.prepare('SELECT COUNT(*) AS c FROM customers').get().c;
+if (custCount === 0) {
+  ['TOTO'].forEach((n) => db.prepare('INSERT INTO customers (name) VALUES (?)').run(n));
 }
 
 export default db;

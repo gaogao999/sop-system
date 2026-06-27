@@ -6,11 +6,11 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 
 - **Sign in** (`POST /checklogin` with `username` / `password` sent as a form; session cookie is `connect.sid`)
 - **File upload** (PDF / Excel `.xls`/`.xlsx` / Word `.doc`/`.docx`, up to 50 MB)
-- **Two classification axes** — **Type (種別)** (QP / SOP / Format) and **Department (部署)**. Both are required on upload and fully editable (add / delete). A type/department that still has files cannot be deleted.
-- **Header metadata** — Document No., Revision, Document date, Model and Product No. are stored alongside each file.
+- **Three classification axes** — **Type (種別)** (QP / SOP / Format) and **Department (部署)** are required; **Customer (顧客)** (e.g. TOTO) is optional. All are fully editable (add / delete). A type/department that still has files cannot be deleted; deleting a customer just unassigns its files.
+- **Header metadata** — Document No., Revision, Document date, 品名 (product name), Model and Product No. are stored alongside each file.
 - **Document-number auto-fill** — the document number encodes `<type>-<department>-<serial>` (e.g. `SOP-QC-0021`), so typing it auto-selects the matching Type and Department.
-- **Experimental PDF header extraction** — on upload, page 1 of a PDF is parsed (`pdftotext`) to pre-fill the document number, title, revision, date, model and product number. The result is editable and reviewed before saving; if `pdftotext` is unavailable it degrades to manual entry.
-- **Filter by both axes at once** (Type × Department), plus **search** (partial match on title, description, document number and original file name)
+- **Experimental PDF header extraction** — on upload, page 1 of a PDF is parsed (`pdftotext`) to pre-fill the document number, title, revision, date, 品名, model and product number, and to auto-select the customer from the Model line (`TOTO : …`). The result is editable and reviewed before saving; if `pdftotext` is unavailable it degrades to manual entry.
+- **Filter by all three axes at once** (Type × Department × Customer, including a "None" filter for files with no customer), plus **search** (partial match on title, description, document number, product name/number and original file name)
 - **File list, download and delete**
 
 ## Stack
@@ -88,9 +88,12 @@ node seed.js <username> <password> "Display Name"
 | GET | `/api/departments` | Department list (with file counts) |
 | POST | `/api/departments` | Add department (`{name}`) |
 | DELETE | `/api/departments/:id` | Delete department (blocked with `409` while files still use it) |
-| GET | `/api/files?q=&type=&department=` | List / search files (filter by either or both axes) |
-| POST | `/api/extract` | Parse an uploaded PDF's header and return `doc_no` / `title` / `revision` / `doc_date` / `model` / `product_no` (+ `type_code` / `dept_code`). The file is parsed and discarded, not stored. |
-| POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`** (required), and optional `doc_no`, `revision`, `doc_date`, `model`, `product_no`) |
+| GET | `/api/customers` | Customer list (with file counts) |
+| POST | `/api/customers` | Add customer (`{name}`) |
+| DELETE | `/api/customers/:id` | Delete customer (its files become unassigned) |
+| GET | `/api/files?q=&type=&department=&customer=` | List / search files (filter by any combination of axes; `customer=none` = no customer) |
+| POST | `/api/extract` | Parse an uploaded PDF's header and return `doc_no` / `title` / `revision` / `doc_date` / `model` / `product_name` / `product_no` / `customer_name` (+ `type_code` / `dept_code`). The file is parsed and discarded, not stored. |
+| POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`** (required), and optional `customer_id`, `doc_no`, `revision`, `doc_date`, `product_name`, `model`, `product_no`) |
 | GET | `/api/files/:id/download` | Download |
 | DELETE | `/api/files/:id` | Delete |
 | GET | `/healthz` | Health check |

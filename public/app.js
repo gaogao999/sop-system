@@ -17,10 +17,19 @@ const AXES = {
     queryKey: 'department',
     label: 'department',
   },
+  customer: {
+    api: '/api/customers',
+    listEl: '#customerList',
+    uploadEl: '#uploadCustomer',
+    queryKey: 'customer',
+    label: 'customer',
+    optional: true, // optional on upload + offers a "None" filter
+  },
 };
 const state = {
   type: { items: [], active: 'all' },
   department: { items: [], active: 'all' },
+  customer: { items: [], active: 'all' },
   q: '',
 };
 
@@ -71,6 +80,8 @@ function renderAxis(key) {
   const s = state[key];
   const total = s.items.reduce((sum, c) => sum + c.file_count, 0);
   const items = [{ id: 'all', name: 'All', file_count: total, fixed: true }, ...s.items];
+  // Optional axes can have unassigned files — offer a "None" filter for them
+  if (axis.optional) items.push({ id: 'none', name: 'None (未指定)', file_count: -1, fixed: true });
   $(axis.listEl).innerHTML = items
     .map((c) => {
       const active = String(s.active) === String(c.id) ? ' active' : '';
@@ -86,10 +97,13 @@ function renderAxis(key) {
 
 function renderAxisOptions(key) {
   const axis = AXES[key];
-  // Required selects: a blank placeholder forces an explicit choice
-  $(axis.uploadEl).innerHTML =
-    `<option value="" disabled selected>Select…</option>` +
-    state[key].items.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const opts = state[key].items
+    .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
+    .join('');
+  // Optional selects allow an empty choice; required ones force an explicit pick
+  $(axis.uploadEl).innerHTML = axis.optional
+    ? `<option value="">— (none)</option>${opts}`
+    : `<option value="" disabled selected>Select…</option>${opts}`;
 }
 
 // --- File list -------------------------------------------------------------
@@ -107,7 +121,7 @@ function renderFiles(files) {
   $('#listInfo').textContent = `${files.length} file${files.length === 1 ? '' : 's'}`;
   const tbody = $('#fileRows');
   if (files.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">No matching files</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">No matching files</td></tr>`;
     return;
   }
   tbody.innerHTML = files
@@ -121,13 +135,14 @@ function renderFiles(files) {
         </td>
         <td>
           <div class="file-title">${esc(f.title)}</div>
-          ${f.model ? `<div class="file-desc">${esc(f.model)}</div>` : ''}
+          ${f.product_name ? `<div class="file-desc">品名: ${esc(f.product_name)}</div>` : ''}
           ${f.product_no ? `<div class="file-desc">${esc(f.product_no)}</div>` : ''}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
         </td>
         <td>${f.doc_type_name ? `<span class="tag">${esc(f.doc_type_name)}</span>` : '-'}</td>
         <td>${f.department_name ? esc(f.department_name) : '-'}</td>
+        <td>${f.customer_name ? esc(f.customer_name) : '<span class="muted">-</span>'}</td>
         <td>${fmtSize(f.size)}</td>
         <td>${fmtDate(f.uploaded_at)}</td>
         <td>${esc(f.uploaded_by_name || '-')}</td>
@@ -192,8 +207,10 @@ function bindAddForm(formSel, inputSel, key) {
 function bindEvents() {
   bindAxisEvents('type');
   bindAxisEvents('department');
+  bindAxisEvents('customer');
   bindAddForm('#typeForm', '#newType', 'type');
   bindAddForm('#departmentForm', '#newDepartment', 'department');
+  bindAddForm('#customerForm', '#newCustomer', 'customer');
 
   // Search (as you type)
   let timer;
@@ -210,7 +227,7 @@ function bindEvents() {
     if (!confirm('Delete this file?')) return;
     await api(`/api/files/${del.dataset.id}`, { method: 'DELETE' });
     await loadFiles();
-    await Promise.all([loadAxis('type'), loadAxis('department')]);
+    await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
   });
 
   // Upload modal
@@ -262,8 +279,11 @@ function bindEvents() {
       setIf('#title', meta.title);
       setIf('#revision', meta.revision);
       setIf('#docDate', meta.doc_date);
+      setIf('#productName', meta.product_name);
       setIf('#model', meta.model);
       setIf('#productNo', meta.product_no);
+      // Customer comes from the Model prefix (e.g. "TOTO : …") — select if known
+      if (!$('#uploadCustomer').value) matchAxisByName('customer', meta.customer_name);
       applyDocNo();
       const found = meta.doc_no || meta.title || meta.revision;
       status.textContent = found
@@ -286,16 +306,18 @@ function bindEvents() {
     fd.append('description', $('#description').value);
     fd.append('doc_type_id', $('#uploadType').value);
     fd.append('department_id', $('#uploadDepartment').value);
+    fd.append('customer_id', $('#uploadCustomer').value);
     fd.append('doc_no', $('#docNo').value);
     fd.append('revision', $('#revision').value);
     fd.append('doc_date', $('#docDate').value);
+    fd.append('product_name', $('#productName').value);
     fd.append('model', $('#model').value);
     fd.append('product_no', $('#productNo').value);
     try {
       await api('/api/files', { method: 'POST', body: fd });
       dialog.close();
       await loadFiles();
-      await Promise.all([loadAxis('type'), loadAxis('department')]);
+      await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
     } catch (err) {
       const el = $('#uploadError');
       el.textContent = err.message;
@@ -313,7 +335,7 @@ async function init() {
     return; // api() already redirected on 401
   }
   bindEvents();
-  await Promise.all([loadAxis('type'), loadAxis('department')]);
+  await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
   await loadFiles();
 }
 

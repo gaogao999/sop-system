@@ -35,6 +35,14 @@
           <input type="text" id="newDepartment" placeholder="New department" maxlength="50" />
           <button type="submit">Add</button>
         </form>
+
+        <!-- Customer axis (optional) -->
+        <h2>Customer (顧客)</h2>
+        <ul id="customerList" class="filter-list"></ul>
+        <form id="customerForm" class="add-filter">
+          <input type="text" id="newCustomer" placeholder="New customer" maxlength="50" />
+          <button type="submit">Add</button>
+        </form>
       </aside>
 
       <main class="content">
@@ -55,6 +63,7 @@
                 <th>Title</th>
                 <th>Type (種別)</th>
                 <th>Department (部署)</th>
+                <th>Customer (顧客)</th>
                 <th>Size</th>
                 <th>Uploaded</th>
                 <th>By</th>
@@ -91,6 +100,10 @@
           </label>
         </div>
         <label>
+          Customer (顧客) <span class="hint">(optional)</span>
+          <select id="uploadCustomer" name="customer_id"></select>
+        </label>
+        <label>
           Title
           <input type="text" id="title" name="title" placeholder="Defaults to the file name if left blank" maxlength="200" />
         </label>
@@ -105,13 +118,19 @@
           </label>
         </div>
         <label>
-          Model <span class="hint">(SOP, optional)</span>
-          <input type="text" id="model" name="model" maxlength="200" />
+          品名 / Product name <span class="hint">(SOP, optional)</span>
+          <input type="text" id="productName" name="product_name" maxlength="200" />
         </label>
-        <label>
-          Product No. <span class="hint">(SOP, optional)</span>
-          <input type="text" id="productNo" name="product_no" maxlength="500" />
-        </label>
+        <div class="field-row">
+          <label>
+            Model <span class="hint">(optional)</span>
+            <input type="text" id="model" name="model" maxlength="200" />
+          </label>
+          <label>
+            Product No. <span class="hint">(optional)</span>
+            <input type="text" id="productNo" name="product_no" maxlength="500" />
+          </label>
+        </div>
         <label>
           Description (optional)
           <textarea id="description" name="description" rows="2" maxlength="1000"></textarea>

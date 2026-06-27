@@ -87,7 +87,16 @@ const firstCol = (s) =>
     .filter(Boolean)[0] || '';
 
 function extractHeader(filePath, originalName, mimetype) {
-  const out = { doc_no: '', revision: '', doc_date: '', title: '', model: '', product_no: '' };
+  const out = {
+    doc_no: '',
+    revision: '',
+    doc_date: '',
+    title: '',
+    model: '',
+    customer_name: '',
+    product_name: '',
+    product_no: '',
+  };
 
   // Revision is most reliable from the file name (e.g. ..._Rev.16_...)
   const revFromName = (originalName || '').match(/Rev\.?\s*(\d+)/i);
@@ -118,7 +127,18 @@ function extractHeader(filePath, originalName, mimetype) {
   out.title = firstCol(title ? title[1] : desc ? desc[1] : '');
 
   const model = text.match(/Model\s*:?\s*(.+)/);
-  if (model) out.model = firstCol(model[1]);
+  if (model) {
+    out.model = firstCol(model[1]);
+    // The Model line is usually "<customer> : <product name>", e.g.
+    // "TOTO : Operation Panel _Domestic" -> customer=TOTO, 品名=Operation Panel…
+    const colon = out.model.indexOf(':');
+    if (colon !== -1) {
+      out.customer_name = out.model.slice(0, colon).trim();
+      out.product_name = out.model.slice(colon + 1).trim();
+    } else {
+      out.product_name = out.model;
+    }
+  }
   const productNo = text.match(/Product\s*No\.?\s*:?\s*(.+)/);
   if (productNo) out.product_no = firstCol(productNo[1]);
 
@@ -160,10 +180,12 @@ app.post('/logout', (req, res) => {
 
 app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.session.user }));
 
-// --- Lookup axes (doc types & departments) ---------------------------------
-// Both are simple editable name lists. They share the same shape, so a small
+// --- Lookup axes (doc types / departments / customers) ---------------------
+// All are simple editable name lists. They share the same shape, so a small
 // factory builds the CRUD routes for each, keyed by the file column it filters.
-function registerLookup(basePath, table, fileColumn, label) {
+// `blockWhenInUse` = true for required axes (delete refused while referenced);
+// false for the optional customer axis (deleting just unassigns its files).
+function registerLookup(basePath, table, fileColumn, label, blockWhenInUse = true) {
   // List with per-item file counts
   app.get(basePath, requireAuth, (req, res) => {
     const rows = db
@@ -187,17 +209,22 @@ function registerLookup(basePath, table, fileColumn, label) {
     res.status(201).json({ id: info.lastInsertRowid, name, file_count: 0 });
   });
 
-  // Delete — blocked while files still reference it (both axes are required)
+  // Delete — required axes refuse while referenced; optional axes unassign
   app.delete(`${basePath}/:id`, requireAuth, (req, res) => {
     const id = Number(req.params.id);
     const row = db.prepare(`SELECT id FROM ${table} WHERE id = ?`).get(id);
     if (!row) return res.status(404).json({ error: `${label} not found` });
-    const used = db.prepare(`SELECT COUNT(*) AS c FROM sop_files WHERE ${fileColumn} = ?`).get(id).c;
-    if (used > 0) {
-      return res
-        .status(409)
-        .json({ error: `Cannot delete: ${used} file(s) still use this ${label}` });
+    if (blockWhenInUse) {
+      const used = db
+        .prepare(`SELECT COUNT(*) AS c FROM sop_files WHERE ${fileColumn} = ?`)
+        .get(id).c;
+      if (used > 0) {
+        return res
+          .status(409)
+          .json({ error: `Cannot delete: ${used} file(s) still use this ${label}` });
+      }
     }
+    // For the optional customer axis, ON DELETE SET NULL unassigns its files.
     db.prepare(`DELETE FROM ${table} WHERE id = ?`).run(id);
     res.json({ ok: true });
   });
@@ -205,6 +232,7 @@ function registerLookup(basePath, table, fileColumn, label) {
 
 registerLookup('/api/doc-types', 'doc_types', 'doc_type_id', 'document type');
 registerLookup('/api/departments', 'departments', 'department_id', 'department');
+registerLookup('/api/customers', 'customers', 'customer_id', 'customer', false);
 
 // --- PDF header auto-extract (experimental) --------------------------------
 // Accepts a file, reads its header, and returns the fields so the upload form
@@ -233,28 +261,41 @@ app.post('/api/extract', requireAuth, (req, res) => {
 });
 
 // --- Static files ----------------------------------------------------------
+// `no-cache` = the browser may cache but must revalidate every time (cheap 304
+// when unchanged). This guarantees users get the latest HTML/JS right after a
+// deploy instead of a stale cached frontend, while keeping requests light.
+const noCache = (res) => res.setHeader('Cache-Control', 'no-cache');
+
 // The sign-in page and static assets are served without auth
-app.get('/login.html', (req, res) => res.sendFile(join(__dirname, 'public', 'login.html')));
-app.use('/assets', express.static(join(__dirname, 'public')));
+app.get('/login.html', (req, res) => {
+  noCache(res);
+  res.sendFile(join(__dirname, 'public', 'login.html'));
+});
+app.use('/assets', express.static(join(__dirname, 'public'), { setHeaders: noCache }));
 
 // The home page requires auth (redirects to sign-in if not logged in)
-app.get('/', requireAuth, (req, res) => res.sendFile(join(__dirname, 'public', 'index.html')));
+app.get('/', requireAuth, (req, res) => {
+  noCache(res);
+  res.sendFile(join(__dirname, 'public', 'index.html'));
+});
 
 // --- File API --------------------------------------------------------------
 const fileSelect = `
   SELECT f.id, f.title, f.description,
          f.doc_type_id, t.name AS doc_type_name,
          f.department_id, d.name AS department_name,
-         f.doc_no, f.revision, f.doc_date, f.model, f.product_no,
+         f.customer_id, cu.name AS customer_name,
+         f.doc_no, f.revision, f.doc_date, f.model, f.product_name, f.product_no,
          f.original_name, f.mimetype, f.size, f.uploaded_at,
          u.username AS uploaded_by_name
   FROM sop_files f
   LEFT JOIN doc_types t ON t.id = f.doc_type_id
   LEFT JOIN departments d ON d.id = f.department_id
+  LEFT JOIN customers cu ON cu.id = f.customer_id
   LEFT JOIN users u ON u.id = f.uploaded_by
 `;
 
-// List + search (q: title/description/doc no/file name; type/department: axis ids)
+// List + search (q: title/desc/doc no/product/file name; type/department/customer)
 app.get('/api/files', requireAuth, (req, res) => {
   const q = (req.query.q || '').toString().trim();
   const where = [];
@@ -262,20 +303,24 @@ app.get('/api/files', requireAuth, (req, res) => {
 
   if (q) {
     where.push(
-      '(f.title LIKE ? OR f.description LIKE ? OR f.doc_no LIKE ? OR f.original_name LIKE ?)'
+      '(f.title LIKE ? OR f.description LIKE ? OR f.doc_no LIKE ? OR f.product_name LIKE ? OR f.product_no LIKE ? OR f.original_name LIKE ?)'
     );
     const like = `%${q}%`;
-    params.push(like, like, like, like);
+    params.push(like, like, like, like, like, like);
   }
-  // Each axis filters independently; 'all'/empty means no filter on that axis
+  // Each axis filters independently; 'all'/empty means no filter on that axis.
+  // 'none' matches files with nothing assigned (used by the optional customer axis).
   const axisFilter = (value, column) => {
-    if (value !== undefined && value !== '' && value !== 'all') {
+    if (value === 'none') {
+      where.push(`f.${column} IS NULL`);
+    } else if (value !== undefined && value !== '' && value !== 'all') {
       where.push(`f.${column} = ?`);
       params.push(Number(value));
     }
   };
   axisFilter(req.query.type, 'doc_type_id');
   axisFilter(req.query.department, 'department_id');
+  axisFilter(req.query.customer, 'customer_id');
 
   const sql = `${fileSelect} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY f.uploaded_at DESC`;
   res.json(db.prepare(sql).all(...params));
@@ -306,6 +351,12 @@ app.post('/api/files', requireAuth, (req, res) => {
       return res.status(400).json({ error: 'Please choose a department' });
     }
 
+    // Customer is optional; keep it only if it refers to an existing customer
+    let customerId = req.body.customer_id ? Number(req.body.customer_id) : null;
+    if (customerId && !db.prepare('SELECT id FROM customers WHERE id = ?').get(customerId)) {
+      customerId = null;
+    }
+
     const title = (req.body.title || req.file.originalname).toString().trim().slice(0, 200);
     const description = (req.body.description || '').toString().trim().slice(0, 1000);
     const str = (v, n) => (v || '').toString().trim().slice(0, n);
@@ -313,23 +364,26 @@ app.post('/api/files', requireAuth, (req, res) => {
     const revision = str(req.body.revision, 50);
     const docDate = str(req.body.doc_date, 50);
     const model = str(req.body.model, 200);
+    const productName = str(req.body.product_name, 200);
     const productNo = str(req.body.product_no, 500);
 
     const info = db
       .prepare(
         `INSERT INTO sop_files
-          (title, description, doc_type_id, department_id, doc_no, revision, doc_date, model, product_no, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (title, description, doc_type_id, department_id, customer_id, doc_no, revision, doc_date, model, product_name, product_no, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title,
         description,
         docTypeId,
         departmentId,
+        customerId,
         docNo,
         revision,
         docDate,
         model,
+        productName,
         productNo,
         req.file.filename,
         req.file.originalname,
