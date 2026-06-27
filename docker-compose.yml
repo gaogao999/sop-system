@@ -1,0 +1,25 @@
+# Local development / on-prem run with persistent data.
+#
+#   docker compose up -d --build      # start (build first time)
+#   open http://localhost:3000        # admin / admin123 by default
+#   docker compose down               # stop (DATA IS KEPT in the named volume)
+#   docker compose down -v            # stop AND delete all data
+#
+# The DB (SQLite) and uploaded files live in the named volume "sop-data"
+# mounted at /data, so they survive restarts, rebuilds and `compose down`.
+services:
+  sop:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - sop-data:/data
+    environment:
+      # Change these before sharing the machine with anyone
+      ADMIN_USER: admin
+      ADMIN_PASS: admin123
+      SESSION_SECRET: change-me-for-local-dev
+    restart: unless-stopped
+
+volumes:
+  sop-data:

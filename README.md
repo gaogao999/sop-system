@@ -132,17 +132,46 @@ automatically (you'll be asked for `ADMIN_USER` / `ADMIN_PASS`).
    already baked into the Dockerfile.
 5. Deploy — Render gives you a public `https://…onrender.com` URL.
 
-### Docker (anywhere)
+### Run locally / on-prem with Docker (persistent data) — recommended for development
+
+Requires Docker Desktop (or Docker Engine). Data is kept in a named volume, so
+it survives restarts and rebuilds — unlike Render's free plan.
+
+```bash
+docker compose up -d --build      # build & start
+# open http://localhost:3000  → sign in with admin / admin123 (change in docker-compose.yml)
+docker compose logs -f            # view logs
+docker compose down               # stop (DATA IS KEPT)
+docker compose down -v            # stop AND erase all data
+```
+
+The SQLite DB and uploads live in the `sop-data` volume mounted at `/data`.
+To keep the data as plain files inside the project instead, replace the volume
+line in `docker-compose.yml` with a bind mount: `- ./data:/data`.
+
+When you later move to the company server, run the exact same
+`docker compose up -d --build` there — the data lives on that server's disk.
+
+### Plain Node (no Docker)
+
+```bash
+npm install && npm start   # data in ./data and ./uploads
+```
+
+> Note: experimental PDF header extraction needs `pdftotext` (poppler-utils);
+> the Docker image already includes it.
+
+### Docker (single command)
 
 ```bash
 docker build -t sop-system .
-docker run -p 3000:3000 -v $(pwd)/data:/data \
+docker run -p 3000:3000 -v sop-data:/data \
   -e SESSION_SECRET=long-random-string -e ADMIN_USER=you -e ADMIN_PASS=secret \
   sop-system
 ```
 
-> When public, anyone with the URL reaches the sign-in page. Always set a strong
-> `ADMIN_PASS` and `SESSION_SECRET`.
+> When exposed publicly, anyone with the URL reaches the sign-in page. Always set
+> a strong `ADMIN_PASS` and `SESSION_SECRET`.
 
 ## Security notes
 
