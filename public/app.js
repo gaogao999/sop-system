@@ -297,7 +297,6 @@ function renderFiles(files) {
         <td>${fmtDate(f.uploaded_at)}</td>
         <td>${esc(f.uploaded_by_name || '-')}</td>
         <td class="actions">
-          <button class="btn-link view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">👁 View</button>
           <a class="btn-link" href="/api/files/${f.id}/download">⬇ Download</a>
           <button class="btn-link danger del-file" data-id="${f.id}">Delete</button>
         </td>
