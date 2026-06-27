@@ -145,6 +145,41 @@ function extractHeader(filePath, originalName, mimetype) {
   return out;
 }
 
+// --- Product codes (品番) for exact barcode matching -----------------------
+// Split the product-number text into individual codes. A code is a 3+ char
+// token that contains at least one digit (DD360, DEMED216, …); plain words
+// like "Operation" are ignored. The document number is included too, so a
+// scanned doc number also resolves exactly.
+function extractCodes(productNo, docNo) {
+  const codes = new Set();
+  for (const tok of (productNo || '').split(/[^A-Za-z0-9-]+/)) {
+    const t = tok.replace(/^-+|-+$/g, '');
+    if (t.length >= 3 && /\d/.test(t)) codes.add(t);
+  }
+  const dn = (docNo || '').trim();
+  if (dn) codes.add(dn);
+  return [...codes];
+}
+
+const insertCode = db.prepare('INSERT INTO product_codes (file_id, code) VALUES (?, ?)');
+const clearCodes = db.prepare('DELETE FROM product_codes WHERE file_id = ?');
+// Rebuild the code list for a file (used on upload and for backfill)
+function setProductCodes(fileId, productNo, docNo) {
+  clearCodes.run(fileId);
+  for (const code of extractCodes(productNo, docNo)) insertCode.run(fileId, code);
+}
+
+// Backfill codes for any pre-existing file that has none yet (e.g. after the
+// feature is deployed onto a database that already holds files)
+const filesNeedingCodes = db
+  .prepare(
+    `SELECT id, product_no, doc_no FROM sop_files f
+     WHERE NOT EXISTS (SELECT 1 FROM product_codes p WHERE p.file_id = f.id)
+       AND (f.product_no <> '' OR f.doc_no <> '')`
+  )
+  .all();
+for (const f of filesNeedingCodes) setProductCodes(f.id, f.product_no, f.doc_no);
+
 // --- Auth middleware -------------------------------------------------------
 const requireAuth = (req, res, next) => {
   if (req.session && req.session.user) return next();
@@ -393,6 +428,9 @@ app.post('/api/files', requireAuth, (req, res) => {
         new Date().toISOString()
       );
 
+    // Index the product codes for exact barcode lookup
+    setProductCodes(info.lastInsertRowid, productNo, docNo);
+
     res.status(201).json(db.prepare(`${fileSelect} WHERE f.id = ?`).get(info.lastInsertRowid));
   });
 });
@@ -420,6 +458,19 @@ app.get('/api/files/:id/download', requireAuth, (req, res) => {
 app.get('/api/lookup', requireAuth, (req, res) => {
   const code = (req.query.code || '').toString().trim();
   if (!code) return res.json([]);
+
+  // Tier 1: exact product-code match (case-insensitive). This is the reliable
+  // path — scanning DD360 matches only the code "DD360", never "DD3600".
+  const exact = db
+    .prepare(
+      `${fileSelect}
+       WHERE f.id IN (SELECT file_id FROM product_codes WHERE code = ? COLLATE NOCASE)
+       ORDER BY f.uploaded_at DESC`
+    )
+    .all(code);
+  if (exact.length > 0) return res.json(exact);
+
+  // Tier 2: fall back to a substring search across the identifier fields
   const like = `%${code}%`;
   const rows = db
     .prepare(

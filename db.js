@@ -81,11 +81,21 @@ db.exec(`
     uploaded_at   TEXT NOT NULL
   );
 
+  -- Individual product codes (品番) per file, parsed from product_no / doc_no.
+  -- Enables exact barcode matching (scanning DD360 must not hit DD3600).
+  CREATE TABLE IF NOT EXISTS product_codes (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id INTEGER NOT NULL REFERENCES sop_files(id) ON DELETE CASCADE,
+    code    TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_sop_doc_type   ON sop_files(doc_type_id);
   CREATE INDEX IF NOT EXISTS idx_sop_department ON sop_files(department_id);
   CREATE INDEX IF NOT EXISTS idx_sop_customer   ON sop_files(customer_id);
   CREATE INDEX IF NOT EXISTS idx_sop_title      ON sop_files(title);
   CREATE INDEX IF NOT EXISTS idx_sop_doc_no     ON sop_files(doc_no);
+  CREATE INDEX IF NOT EXISTS idx_pcode_code     ON product_codes(code);
+  CREATE INDEX IF NOT EXISTS idx_pcode_file     ON product_codes(file_id);
 `);
 
 // --- Migration: add newer columns to older databases --------------------
