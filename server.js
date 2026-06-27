@@ -155,6 +155,21 @@ function extractHeader(filePath, originalName, mimetype) {
   return out;
 }
 
+// Full PDF body text (all pages) for content search. Truncated to keep DB rows
+// reasonable; empty for non-PDFs or if pdftotext is unavailable.
+function extractFullText(filePath, mimetype) {
+  if (mimetype !== 'application/pdf') return '';
+  try {
+    const txt = execFileSync('pdftotext', [filePath, '-'], {
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    return txt.replace(/\s+/g, ' ').trim().slice(0, 200000);
+  } catch {
+    return '';
+  }
+}
+
 // --- Product codes (品番) for exact barcode matching -----------------------
 // Split the product-number text into individual codes. A code is a 3+ char
 // token that contains at least one digit (DD360, DEMED216, …); plain words
@@ -375,10 +390,10 @@ app.get('/api/files', requireAuth, (req, res) => {
 
   if (q) {
     where.push(
-      '(f.title LIKE ? OR f.description LIKE ? OR f.doc_no LIKE ? OR f.product_name LIKE ? OR f.product_no LIKE ? OR f.original_name LIKE ?)'
+      '(f.title LIKE ? OR f.description LIKE ? OR f.doc_no LIKE ? OR f.product_name LIKE ? OR f.product_no LIKE ? OR f.original_name LIKE ? OR f.pdf_text LIKE ?)'
     );
     const like = `%${q}%`;
-    params.push(like, like, like, like, like, like);
+    params.push(like, like, like, like, like, like, like);
   }
   // Each axis filters independently; 'all'/empty means no filter on that axis.
   // 'none' matches files with nothing assigned (used by the optional customer axis).
@@ -458,12 +473,13 @@ app.post('/api/files', requireAuth, (req, res) => {
     const model = str(req.body.model, 200);
     const productName = str(req.body.product_name, 200);
     const productNo = str(req.body.product_no, 500);
+    const pdfText = extractFullText(join(UPLOAD_DIR, req.file.filename), req.file.mimetype);
 
     const info = db
       .prepare(
         `INSERT INTO sop_files
-          (title, description, doc_type_id, department_id, customer_id, doc_no, revision, doc_date, model, product_name, product_no, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          (title, description, doc_type_id, department_id, customer_id, doc_no, revision, doc_date, model, product_name, product_no, pdf_text, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title,
@@ -477,6 +493,7 @@ app.post('/api/files', requireAuth, (req, res) => {
         model,
         productName,
         productNo,
+        pdfText,
         req.file.filename,
         req.file.originalname,
         req.file.mimetype,

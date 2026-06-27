@@ -73,6 +73,7 @@ db.exec(`
     model         TEXT NOT NULL DEFAULT '',   -- raw Model line, e.g. TOTO : Operation Panel
     product_name  TEXT NOT NULL DEFAULT '',   -- 品名, e.g. Operation Panel _Domestic
     product_no    TEXT NOT NULL DEFAULT '',   -- e.g. DD360 / DD370 … (SOP)
+    pdf_text      TEXT NOT NULL DEFAULT '',   -- extracted PDF body text (for full-text search)
     stored_name   TEXT NOT NULL,          -- stored file name (within uploads/)
     original_name TEXT NOT NULL,          -- original file name at upload time
     mimetype      TEXT NOT NULL,
@@ -109,6 +110,7 @@ const newCols = {
   model: `TEXT NOT NULL DEFAULT ''`,
   product_name: `TEXT NOT NULL DEFAULT ''`,
   product_no: `TEXT NOT NULL DEFAULT ''`,
+  pdf_text: `TEXT NOT NULL DEFAULT ''`,
   customer_id: `INTEGER REFERENCES customers(id)`,
 };
 for (const [col, ddl] of Object.entries(newCols)) {
