@@ -67,6 +67,14 @@
             </form>
           </div>
         </section>
+
+        <!-- Product No. filter -->
+        <section class="axis-section">
+          <h2 class="axis-toggle">Product No. <span class="chevron">▸</span></h2>
+          <div class="axis-body">
+            <input type="search" id="productFilter" class="sidebar-input" placeholder="e.g. DD360" />
+          </div>
+        </section>
       </aside>
 
       <main class="content">
@@ -91,26 +99,14 @@
             <thead>
               <tr>
                 <th></th>
-                <th>Doc No. / Rev</th>
-                <th>Title</th>
-                <th>Type</th>
-                <th>Department</th>
-                <th>Customer</th>
-                <th>Size</th>
-                <th>Uploaded</th>
-                <th>By</th>
-                <th></th>
-              </tr>
-              <tr class="filter-row">
-                <th></th>
-                <th><input type="search" id="fDocref" placeholder="Filter…" /></th>
-                <th><input type="search" id="fTitle" placeholder="Filter…" /></th>
-                <th><select id="colType"></select></th>
-                <th><select id="colDept"></select></th>
-                <th><select id="colCust"></select></th>
-                <th></th>
-                <th></th>
-                <th><input type="search" id="fBy" placeholder="Filter…" /></th>
+                <th class="sortable" data-sort="doc_no">Doc No. / Rev <span class="arrow"></span></th>
+                <th class="sortable" data-sort="title">Title <span class="arrow"></span></th>
+                <th class="sortable" data-sort="doc_type_name">Type <span class="arrow"></span></th>
+                <th class="sortable" data-sort="department_name">Department <span class="arrow"></span></th>
+                <th class="sortable" data-sort="customer_name">Customer <span class="arrow"></span></th>
+                <th class="sortable" data-sort="size">Size <span class="arrow"></span></th>
+                <th class="sortable" data-sort="uploaded_at">Uploaded <span class="arrow"></span></th>
+                <th class="sortable" data-sort="uploaded_by_name">By <span class="arrow"></span></th>
                 <th></th>
               </tr>
             </thead>

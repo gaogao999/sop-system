@@ -141,6 +141,13 @@ button, .btn-link {
 .axis-section:not(.collapsed) .axis-toggle .chevron { transform: rotate(90deg); }
 .axis-section.collapsed .axis-body { display: none; }
 .axis-body { padding-top: 6px; }
+.sidebar-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 14px;
+}
 .filter-list { list-style: none; margin: 0 0 8px; padding: 0; }
 .filter-item {
   display: flex;
@@ -220,18 +227,9 @@ tr.superseded .file-title { font-weight: 500; }
   vertical-align: top;
 }
 .file-table th { background: #f8fafc; color: var(--muted); font-weight: 600; font-size: 12px; }
-.filter-row th { padding: 6px 8px; background: #f8fafc; border-bottom: 2px solid var(--line); }
-.filter-row input,
-.filter-row select {
-  width: 100%;
-  min-width: 70px;
-  padding: 5px 7px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 400;
-  background: #fff;
-}
+.file-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.file-table th.sortable:hover { color: var(--text); }
+.file-table th .arrow { color: var(--primary); font-size: 10px; margin-left: 2px; }
 .file-table tr:last-child td { border-bottom: none; }
 .file-table .icon { font-size: 20px; }
 .file-title { font-weight: 600; }
@@ -311,7 +309,9 @@ dialog.viewer[open] {
   font-weight: 600;
 }
 .empty { text-align: center; color: var(--muted); padding: 28px; }
-.actions { white-space: nowrap; }
+/* Stack the row actions vertically so they don't waste horizontal space */
+.actions { white-space: nowrap; width: 1%; }
+.actions .btn-link { display: block; text-align: left; width: 100%; }
 .btn-link {
   text-decoration: none;
   color: var(--primary);

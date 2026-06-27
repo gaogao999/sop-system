@@ -385,6 +385,7 @@ app.get('/api/files', requireAuth, (req, res) => {
   colFilter(req.query.docref, ['f.doc_no', 'f.revision', 'f.doc_date']);
   colFilter(req.query.title, ['f.title', 'f.product_name']);
   colFilter(req.query.by, ['u.username']);
+  colFilter(req.query.product, ['f.product_no', 'f.product_name']);
   axisFilter(req.query.type, 'doc_type_id');
   axisFilter(req.query.department, 'department_id');
   axisFilter(req.query.customer, 'customer_id');

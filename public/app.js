@@ -7,7 +7,6 @@ const AXES = {
     api: '/api/doc-types',
     listEl: '#typeList',
     uploadEl: '#uploadType',
-    colEl: '#colType',
     queryKey: 'type',
     label: 'type',
   },
@@ -15,7 +14,6 @@ const AXES = {
     api: '/api/departments',
     listEl: '#departmentList',
     uploadEl: '#uploadDepartment',
-    colEl: '#colDept',
     queryKey: 'department',
     label: 'department',
   },
@@ -23,7 +21,6 @@ const AXES = {
     api: '/api/customers',
     listEl: '#customerList',
     uploadEl: '#uploadCustomer',
-    colEl: '#colCust',
     queryKey: 'customer',
     label: 'customer',
     optional: true, // optional on upload + offers a "None" filter
@@ -35,9 +32,11 @@ const state = {
   customer: { items: [], active: 'all' },
   q: '',
   code: '', // exact product-code filter, '' = none
-  cols: { docref: '', title: '', by: '' }, // per-column text filters
+  productNo: '', // sidebar Product No. partial filter
   showOld: false, // include superseded revisions
+  sort: { key: 'uploaded_at', dir: 'desc' }, // column sort
 };
+let lastFiles = []; // most recent server result, re-sorted on header click
 
 // --- Utilities -------------------------------------------------------------
 const fmtSize = (n) => {
@@ -50,13 +49,9 @@ const fmtDate = (iso) => {
   const p = (x) => String(x).padStart(2, '0');
   return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
-const iconFor = (name) => {
-  const ext = (name.split('.').pop() || '').toLowerCase();
-  if (ext === 'pdf') return '📕';
-  if (ext === 'xls' || ext === 'xlsx') return '📗';
-  if (ext === 'doc' || ext === 'docx') return '📘';
-  return '📄';
-};
+// Icon by document type, colour-coded: SOP=red, QP=blue, Format=green
+const TYPE_ICON = { SOP: '📕', QP: '📘', Format: '📗' };
+const iconFor = (f) => TYPE_ICON[f.doc_type_name] || '📄';
 const esc = (s) =>
   (s ?? '').toString().replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
@@ -82,25 +77,12 @@ async function loadAxis(key) {
   state[key].items = await api(axis.api);
   renderAxis(key);
   renderAxisOptions(key);
-  renderColSelect(key);
 }
 
-// The per-column header dropdown for an axis (mirrors the sidebar selection)
-function renderColSelect(key) {
-  const axis = AXES[key];
-  const opts = state[key].items
-    .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
-    .join('');
-  const none = axis.optional ? `<option value="none">None</option>` : '';
-  $(axis.colEl).innerHTML = `<option value="all">All</option>${opts}${none}`;
-  $(axis.colEl).value = state[key].active;
-}
-
-// Single source of truth for an axis; keeps sidebar + header dropdown in sync
+// Single source of truth for an axis selection (sidebar)
 function setActive(key, value) {
   state[key].active = value;
   renderAxis(key);
-  $(AXES[key].colEl).value = value;
   loadFiles();
 }
 
@@ -232,13 +214,36 @@ async function loadFiles() {
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
   if (state.code) params.set('code', state.code);
+  if (state.productNo) params.set('product', state.productNo);
   if (state.showOld) params.set('revisions', 'all');
-  for (const [k, v] of Object.entries(state.cols)) if (v) params.set(k, v);
   for (const key of Object.keys(AXES)) {
     if (state[key].active !== 'all') params.set(AXES[key].queryKey, state[key].active);
   }
-  const files = await api(`/api/files?${params.toString()}`);
-  renderFiles(files);
+  lastFiles = await api(`/api/files?${params.toString()}`);
+  renderFiles(lastFiles);
+}
+
+// Sort the current result set client-side and re-render (no refetch)
+function sortBy(key) {
+  if (state.sort.key === key) {
+    state.sort.dir = state.sort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sort = { key, dir: 'asc' };
+  }
+  renderFiles(lastFiles);
+}
+
+function sortFiles(files) {
+  const { key, dir } = state.sort;
+  const factor = dir === 'asc' ? 1 : -1;
+  return [...files].sort((a, b) => {
+    let x = a[key];
+    let y = b[key];
+    if (key === 'size') return ((x || 0) - (y || 0)) * factor;
+    x = (x ?? '').toString();
+    y = (y ?? '').toString();
+    return x.localeCompare(y, undefined, { numeric: true }) * factor;
+  });
 }
 
 // Active product-code filter banner (set by clicking a product-code chip)
@@ -259,7 +264,17 @@ function setCodeFilter(code) {
   loadFiles();
 }
 
+function renderSortArrows() {
+  document.querySelectorAll('th.sortable').forEach((th) => {
+    const arrow = th.querySelector('.arrow');
+    if (!arrow) return;
+    arrow.textContent = th.dataset.sort === state.sort.key ? (state.sort.dir === 'asc' ? '▲' : '▼') : '';
+  });
+}
+
 function renderFiles(files) {
+  renderSortArrows();
+  files = sortFiles(files);
   $('#listInfo').textContent = `${files.length} file${files.length === 1 ? '' : 's'}`;
   const tbody = $('#fileRows');
   if (files.length === 0) {
@@ -269,7 +284,7 @@ function renderFiles(files) {
   tbody.innerHTML = files
     .map(
       (f) => `<tr class="${f.is_current ? '' : 'superseded'}">
-        <td class="icon">${iconFor(f.original_name)}</td>
+        <td class="icon" title="${esc(f.doc_type_name || '')}">${iconFor(f)}</td>
         <td>
           <div class="doc-no">${f.doc_no ? esc(f.doc_no) : '<span class="muted">-</span>'}</div>
           ${f.revision ? `<div class="file-orig">Rev.${esc(f.revision)}</div>` : ''}
@@ -328,9 +343,6 @@ function bindAxisEvents(key) {
     const item = e.target.closest('.filter-item');
     if (item) setActive(key, item.dataset.id);
   });
-
-  // Header column dropdown <-> sidebar two-way sync
-  $(axis.colEl).addEventListener('change', (e) => setActive(key, e.target.value));
 }
 
 function bindAddForm(formSel, inputSel, key) {
@@ -373,18 +385,18 @@ function bindEvents() {
     timer = setTimeout(loadFiles, 250);
   });
 
-  // Per-column text filters (debounced)
-  let colTimer;
-  const bindColInput = (sel, field) => {
-    $(sel).addEventListener('input', (e) => {
-      clearTimeout(colTimer);
-      state.cols[field] = e.target.value;
-      colTimer = setTimeout(loadFiles, 250);
-    });
-  };
-  bindColInput('#fDocref', 'docref');
-  bindColInput('#fTitle', 'title');
-  bindColInput('#fBy', 'by');
+  // Sidebar Product No. filter (partial match, debounced)
+  let prodTimer;
+  $('#productFilter').addEventListener('input', (e) => {
+    clearTimeout(prodTimer);
+    state.productNo = e.target.value;
+    prodTimer = setTimeout(loadFiles, 250);
+  });
+
+  // Sort by clicking a column header
+  document.querySelectorAll('th.sortable').forEach((th) => {
+    th.addEventListener('click', () => sortBy(th.dataset.sort));
+  });
 
   // Show / hide superseded (old) revisions
   $('#showOld').addEventListener('change', (e) => {
