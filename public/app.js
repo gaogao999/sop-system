@@ -236,6 +236,35 @@ function closeView() {
   $('#viewDialog').close();
 }
 
+// --- QR label --------------------------------------------------------------
+let qrCurrent = { code: '', label: '' };
+function openQr(code, label) {
+  qrCurrent = { code: code || '', label: label || code || '' };
+  const cont = $('#qrCode');
+  cont.innerHTML = '';
+  try {
+    const svg = new ZXing.BrowserQRCodeSvgWriter().write(qrCurrent.code, 240, 240);
+    cont.appendChild(svg);
+  } catch (e) {
+    cont.textContent = `QR error: ${e.message}`;
+  }
+  $('#qrText').textContent = qrCurrent.label;
+  $('#qrDialog').showModal();
+}
+function printQr() {
+  const svg = $('#qrCode').innerHTML;
+  const w = window.open('', '_blank', 'width=420,height=560');
+  if (!w) return;
+  w.document.write(
+    `<!doctype html><meta charset="utf-8"><title>QR label</title>` +
+      `<style>body{font-family:system-ui,sans-serif;text-align:center;padding:24px}` +
+      `.lbl{margin-top:14px;font-size:18px;font-weight:700}svg{width:260px;height:260px}</style>` +
+      `<body>${svg}<div class="lbl">${esc(qrCurrent.label)}</div>` +
+      `<script>window.onload=function(){window.print()}<\/script>`
+  );
+  w.document.close();
+}
+
 // --- File list -------------------------------------------------------------
 async function loadFiles() {
   const params = new URLSearchParams();
@@ -394,6 +423,7 @@ function renderFiles(files) {
         <td>${fmtDay(f.uploaded_at)}</td>
         <td>${esc(f.uploaded_by_name || '-')}</td>
         <td class="actions">
+          <button class="btn-link qr-file" data-code="${esc(f.doc_no || f.title)}" data-label="${esc([f.doc_no, f.title].filter(Boolean).join(' — '))}">QR</button>
           <a class="btn-link" href="/api/files/${f.id}/download">Download</a>
           <button class="btn-link danger del-file" data-id="${f.id}">Delete</button>
         </td>
@@ -500,9 +530,16 @@ function bindEvents() {
       setCodeFilter(chip.dataset.code);
       return;
     }
+    const qr = e.target.closest('.qr-file');
+    if (qr) {
+      openQr(qr.dataset.code, qr.dataset.label);
+      return;
+    }
     const view = e.target.closest('.view-file');
     if (view) openView(view.dataset.id, view.dataset.name, view.dataset.pdf === '1');
   });
+  $('#qrClose').addEventListener('click', () => $('#qrDialog').close());
+  $('#qrPrint').addEventListener('click', printQr);
 
   // In-app preview: close via button, Escape, or clicking the backdrop
   $('#viewClose').addEventListener('click', closeView);

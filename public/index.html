@@ -159,6 +159,20 @@
       </form>
     </dialog>
 
+    <!-- QR label (printable) -->
+    <dialog id="qrDialog" class="qr">
+      <div class="qr-head">
+        <span class="viewer-title">QR label</span>
+        <span class="viewer-actions">
+          <button type="button" id="qrPrint" class="primary">Print</button>
+          <button type="button" id="qrClose" class="ghost">Close</button>
+        </span>
+      </div>
+      <div id="qrCode" class="qr-code"></div>
+      <div id="qrText" class="qr-text"></div>
+      <p class="hint">Scanning this code with the Barcode camera opens this document.</p>
+    </dialog>
+
     <!-- Settings: manage Types / Departments / Customers -->
     <dialog id="settingsDialog" class="settings">
       <div class="settings-head">

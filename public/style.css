@@ -347,6 +347,13 @@ dialog input, dialog select, dialog textarea {
 }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
+/* ---- QR label ---- */
+dialog.qr { width: min(360px, 92vw); padding: 18px 20px; text-align: center; }
+.qr-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.qr-code { display: flex; justify-content: center; }
+.qr-code svg { width: 240px; height: 240px; }
+.qr-text { margin-top: 10px; font-weight: 600; }
+
 /* ---- Settings ---- */
 dialog.settings { width: min(900px, 94vw); padding: 20px 24px; }
 .settings-head { display: flex; align-items: center; justify-content: space-between; }
