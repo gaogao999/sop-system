@@ -34,7 +34,7 @@ const state = {
   department: { items: [], active: 'all' },
   customer: { items: [], active: 'all' },
   q: '',
-  code: '', // exact product-code (品番) filter, '' = none
+  code: '', // exact product-code filter, '' = none
   cols: { docref: '', title: '', by: '' }, // per-column text filters
   showOld: false, // include superseded revisions
 };
@@ -88,8 +88,8 @@ function renderColSelect(key) {
   const opts = state[key].items
     .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
     .join('');
-  const none = axis.optional ? `<option value="none">None (未指定)</option>` : '';
-  $(axis.colEl).innerHTML = `<option value="all">すべて</option>${opts}${none}`;
+  const none = axis.optional ? `<option value="none">None</option>` : '';
+  $(axis.colEl).innerHTML = `<option value="all">All</option>${opts}${none}`;
   $(axis.colEl).value = state[key].active;
 }
 
@@ -107,7 +107,7 @@ function renderAxis(key) {
   const total = s.items.reduce((sum, c) => sum + c.file_count, 0);
   const items = [{ id: 'all', name: 'All', file_count: total, fixed: true }, ...s.items];
   // Optional axes can have unassigned files — offer a "None" filter for them
-  if (axis.optional) items.push({ id: 'none', name: 'None (未指定)', file_count: -1, fixed: true });
+  if (axis.optional) items.push({ id: 'none', name: 'None', file_count: -1, fixed: true });
   $(axis.listEl).innerHTML = items
     .map((c) => {
       const active = String(s.active) === String(c.id) ? ' active' : '';
@@ -132,12 +132,12 @@ function renderAxisOptions(key) {
     : `<option value="" disabled selected>Select…</option>${opts}`;
 }
 
-// Clickable product-code (品番) chips — click one to filter the list by it
+// Clickable product-code chips — click one to filter the list by it
 function codeChips(f) {
   // f.codes = space-separated product codes + the doc number; drop the doc no
   const codes = (f.codes || '').split(' ').filter((c) => c && c !== f.doc_no);
   if (codes.length === 0) {
-    return f.product_no ? `<div class="file-desc">品番: ${esc(f.product_no)}</div>` : '';
+    return f.product_no ? `<div class="file-desc">Product No.: ${esc(f.product_no)}</div>` : '';
   }
   const chips = codes
     .map(
@@ -145,7 +145,7 @@ function codeChips(f) {
         `<button class="code-chip${state.code === c ? ' active' : ''}" data-code="${esc(c)}">${esc(c)}</button>`
     )
     .join('');
-  return `<div class="code-chips">品番: ${chips}</div>`;
+  return `<div class="code-chips">Product No.: ${chips}</div>`;
 }
 
 // --- File list -------------------------------------------------------------
@@ -162,7 +162,7 @@ async function loadFiles() {
   renderFiles(files);
 }
 
-// Active 品番 filter banner (set by clicking a product-code chip)
+// Active product-code filter banner (set by clicking a product-code chip)
 function renderActiveCode() {
   const el = $('#activeCode');
   if (!state.code) {
@@ -171,8 +171,8 @@ function renderActiveCode() {
     return;
   }
   el.hidden = false;
-  el.innerHTML = `品番 <strong>${esc(state.code)}</strong> で絞り込み中
-    <button id="clearCode" class="ghost">× 解除</button>`;
+  el.innerHTML = `Filtered by product no <strong>${esc(state.code)}</strong>
+    <button id="clearCode" class="ghost">× Clear</button>`;
 }
 function setCodeFilter(code) {
   state.code = code || '';
@@ -198,14 +198,14 @@ function renderFiles(files) {
           ${
             f.is_current
               ? f.revision_count > 1
-                ? `<span class="rev-badge current">最新 (全${f.revision_count}版)</span>`
+                ? `<span class="rev-badge current">Current (${f.revision_count} revisions)</span>`
                 : ''
-              : `<span class="rev-badge old">旧版</span>`
+              : `<span class="rev-badge old">Superseded</span>`
           }
         </td>
         <td>
           <div class="file-title">${esc(f.title)}</div>
-          ${f.product_name ? `<div class="file-desc">品名: ${esc(f.product_name)}</div>` : ''}
+          ${f.product_name ? `<div class="file-desc">Product name: ${esc(f.product_name)}</div>` : ''}
           ${codeChips(f)}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
@@ -313,12 +313,12 @@ function bindEvents() {
     loadFiles();
   });
 
-  // Click a product-code chip -> filter the list by that exact 品番
+  // Click a product-code chip -> filter the list by that exact code
   $('#fileRows').addEventListener('click', (e) => {
     const chip = e.target.closest('.code-chip');
     if (chip) setCodeFilter(chip.dataset.code);
   });
-  // Clear the active 品番 filter
+  // Clear the active product-code filter
   $('#activeCode').addEventListener('click', (e) => {
     if (e.target.closest('#clearCode')) setCodeFilter('');
   });
@@ -359,18 +359,18 @@ function bindEvents() {
     if (!code) return;
     status.hidden = false;
     status.className = 'extract-status';
-    status.textContent = `「${code}」を検索中…`;
+    status.textContent = `Searching "${code}"…`;
     try {
       const files = await api(`/api/lookup?code=${encodeURIComponent(code)}`);
       if (files.length === 0) {
-        status.textContent = `❌ 見つかりません: ${code}`;
+        status.textContent = `❌ Not found: ${code}`;
         status.classList.add('warn');
       } else if (files.length === 1) {
-        status.textContent = `✓ ${esc(files[0].doc_no || files[0].title)} を開きました`;
+        status.textContent = `✓ Opened ${esc(files[0].doc_no || files[0].title)}`;
         status.classList.add('ok');
         openInline(files[0].id);
       } else {
-        status.textContent = `${files.length} 件ヒット — 開く文書を選んでください:`;
+        status.textContent = `${files.length} matches — choose a document to open:`;
         status.classList.add('ok');
         results.innerHTML = files
           .map(
@@ -384,7 +384,7 @@ function bindEvents() {
           .join('');
       }
     } catch (err) {
-      status.textContent = `エラー: ${err.message}`;
+      status.textContent = `Error: ${err.message}`;
       status.classList.add('warn');
     }
     // Ready for the next scan

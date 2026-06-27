@@ -22,7 +22,7 @@
       <aside class="sidebar">
         <!-- Document type axis (QP / SOP / Format) -->
         <section class="axis-section collapsed">
-          <h2 class="axis-toggle">Type (種別) <span class="chevron">▸</span></h2>
+          <h2 class="axis-toggle">Type <span class="chevron">▸</span></h2>
           <div class="axis-body">
             <ul id="typeList" class="filter-list"></ul>
             <form id="typeForm" class="add-filter">
@@ -34,7 +34,7 @@
 
         <!-- Department axis -->
         <section class="axis-section collapsed">
-          <h2 class="axis-toggle">Department (部署) <span class="chevron">▸</span></h2>
+          <h2 class="axis-toggle">Department <span class="chevron">▸</span></h2>
           <div class="axis-body">
             <ul id="departmentList" class="filter-list"></ul>
             <form id="departmentForm" class="add-filter">
@@ -46,7 +46,7 @@
 
         <!-- Customer axis (optional) -->
         <section class="axis-section collapsed">
-          <h2 class="axis-toggle">Customer (顧客) <span class="chevron">▸</span></h2>
+          <h2 class="axis-toggle">Customer <span class="chevron">▸</span></h2>
           <div class="axis-body">
             <ul id="customerList" class="filter-list"></ul>
             <form id="customerForm" class="add-filter">
@@ -60,8 +60,8 @@
       <main class="content">
         <!-- Search bar -->
         <section class="searchbar">
-          <input type="search" id="search" placeholder="🔍 品番・文書番号・タイトル・品名で検索 (Search: 品番 / doc no / title / product name)" />
-          <button id="scanOpen" class="ghost">📷 バーコード</button>
+          <input type="search" id="search" placeholder="🔍 Search by product no, document no, title or product name" />
+          <button id="scanOpen" class="ghost">📷 Barcode</button>
           <button id="uploadOpen" class="primary">+ Upload</button>
         </section>
 
@@ -71,7 +71,7 @@
           <div class="list-head">
             <p id="listInfo" class="list-info"></p>
             <label class="show-old">
-              <input type="checkbox" id="showOld" /> 旧版も表示
+              <input type="checkbox" id="showOld" /> Show old revisions
             </label>
           </div>
           <table class="file-table">
@@ -80,9 +80,9 @@
                 <th></th>
                 <th>Doc No. / Rev</th>
                 <th>Title</th>
-                <th>Type (種別)</th>
-                <th>Department (部署)</th>
-                <th>Customer (顧客)</th>
+                <th>Type</th>
+                <th>Department</th>
+                <th>Customer</th>
                 <th>Size</th>
                 <th>Uploaded</th>
                 <th>By</th>
@@ -90,14 +90,14 @@
               </tr>
               <tr class="filter-row">
                 <th></th>
-                <th><input type="search" id="fDocref" placeholder="絞込…" /></th>
-                <th><input type="search" id="fTitle" placeholder="絞込…" /></th>
+                <th><input type="search" id="fDocref" placeholder="Filter…" /></th>
+                <th><input type="search" id="fTitle" placeholder="Filter…" /></th>
                 <th><select id="colType"></select></th>
                 <th><select id="colDept"></select></th>
                 <th><select id="colCust"></select></th>
                 <th></th>
                 <th></th>
-                <th><input type="search" id="fBy" placeholder="絞込…" /></th>
+                <th><input type="search" id="fBy" placeholder="Filter…" /></th>
                 <th></th>
               </tr>
             </thead>
@@ -110,19 +110,19 @@
     <!-- Barcode / product-number lookup modal (for the inspection station) -->
     <dialog id="scanDialog">
       <form id="scanForm" method="dialog">
-        <h2>🔎 検査仕様書を検索 (バーコード / 品番)</h2>
-        <p class="hint">バーコードリーダーで読み取るか、品番を入力して Enter</p>
+        <h2>🔎 Find inspection spec (barcode / product no)</h2>
+        <p class="hint">Scan with a barcode reader, or type a product number and press Enter</p>
         <input
           type="text"
           id="scanInput"
-          placeholder="品番をスキャン / 入力…"
+          placeholder="Scan / type a product number…"
           autocomplete="off"
           inputmode="text"
         />
         <p id="scanStatus" class="extract-status" hidden></p>
         <ul id="scanResults" class="scan-results"></ul>
         <div class="dialog-actions">
-          <button type="button" id="scanClose" class="ghost">閉じる</button>
+          <button type="button" id="scanClose" class="ghost">Close</button>
         </div>
       </form>
     </dialog>
@@ -142,16 +142,16 @@
         </label>
         <div class="field-row">
           <label>
-            Type (種別) <span class="req">*</span>
+            Type <span class="req">*</span>
             <select id="uploadType" name="doc_type_id" required></select>
           </label>
           <label>
-            Department (部署) <span class="req">*</span>
+            Department <span class="req">*</span>
             <select id="uploadDepartment" name="department_id" required></select>
           </label>
         </div>
         <label>
-          Customer (顧客) <span class="hint">(optional)</span>
+          Customer <span class="hint">(optional)</span>
           <select id="uploadCustomer" name="customer_id"></select>
         </label>
         <label>
@@ -169,7 +169,7 @@
           </label>
         </div>
         <label>
-          品名 / Product name <span class="hint">(SOP, optional)</span>
+          Product name <span class="hint">(SOP, optional)</span>
           <input type="text" id="productName" name="product_name" maxlength="200" />
         </label>
         <div class="field-row">
@@ -178,7 +178,7 @@
             <input type="text" id="model" name="model" maxlength="200" />
           </label>
           <label>
-            品番 / Product No. <span class="hint">(barcode lookup key)</span>
+            Product No. <span class="hint">(barcode lookup key)</span>
             <input type="text" id="productNo" name="product_no" maxlength="500" />
           </label>
         </div>
