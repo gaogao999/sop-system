@@ -7,6 +7,7 @@ const AXES = {
     api: '/api/doc-types',
     listEl: '#typeList',
     uploadEl: '#uploadType',
+    colEl: '#colType',
     queryKey: 'type',
     label: 'type',
   },
@@ -14,6 +15,7 @@ const AXES = {
     api: '/api/departments',
     listEl: '#departmentList',
     uploadEl: '#uploadDepartment',
+    colEl: '#colDept',
     queryKey: 'department',
     label: 'department',
   },
@@ -21,6 +23,7 @@ const AXES = {
     api: '/api/customers',
     listEl: '#customerList',
     uploadEl: '#uploadCustomer',
+    colEl: '#colCust',
     queryKey: 'customer',
     label: 'customer',
     optional: true, // optional on upload + offers a "None" filter
@@ -32,6 +35,7 @@ const state = {
   customer: { items: [], active: 'all' },
   q: '',
   code: '', // exact product-code (品番) filter, '' = none
+  cols: { docref: '', title: '', by: '' }, // per-column text filters
 };
 
 // --- Utilities -------------------------------------------------------------
@@ -74,6 +78,26 @@ async function loadAxis(key) {
   state[key].items = await api(axis.api);
   renderAxis(key);
   renderAxisOptions(key);
+  renderColSelect(key);
+}
+
+// The per-column header dropdown for an axis (mirrors the sidebar selection)
+function renderColSelect(key) {
+  const axis = AXES[key];
+  const opts = state[key].items
+    .map((c) => `<option value="${c.id}">${esc(c.name)}</option>`)
+    .join('');
+  const none = axis.optional ? `<option value="none">None (未指定)</option>` : '';
+  $(axis.colEl).innerHTML = `<option value="all">すべて</option>${opts}${none}`;
+  $(axis.colEl).value = state[key].active;
+}
+
+// Single source of truth for an axis; keeps sidebar + header dropdown in sync
+function setActive(key, value) {
+  state[key].active = value;
+  renderAxis(key);
+  $(AXES[key].colEl).value = value;
+  loadFiles();
 }
 
 function renderAxis(key) {
@@ -128,6 +152,7 @@ async function loadFiles() {
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
   if (state.code) params.set('code', state.code);
+  for (const [k, v] of Object.entries(state.cols)) if (v) params.set(k, v);
   for (const key of Object.keys(AXES)) {
     if (state[key].active !== 'all') params.set(AXES[key].queryKey, state[key].active);
   }
@@ -213,12 +238,11 @@ function bindAxisEvents(key) {
       return;
     }
     const item = e.target.closest('.filter-item');
-    if (item) {
-      state[key].active = item.dataset.id;
-      renderAxis(key);
-      loadFiles();
-    }
+    if (item) setActive(key, item.dataset.id);
   });
+
+  // Header column dropdown <-> sidebar two-way sync
+  $(axis.colEl).addEventListener('change', (e) => setActive(key, e.target.value));
 }
 
 function bindAddForm(formSel, inputSel, key) {
@@ -255,6 +279,19 @@ function bindEvents() {
     state.q = e.target.value;
     timer = setTimeout(loadFiles, 250);
   });
+
+  // Per-column text filters (debounced)
+  let colTimer;
+  const bindColInput = (sel, field) => {
+    $(sel).addEventListener('input', (e) => {
+      clearTimeout(colTimer);
+      state.cols[field] = e.target.value;
+      colTimer = setTimeout(loadFiles, 250);
+    });
+  };
+  bindColInput('#fDocref', 'docref');
+  bindColInput('#fTitle', 'title');
+  bindColInput('#fBy', 'by');
 
   // Click a product-code chip -> filter the list by that exact 品番
   $('#fileRows').addEventListener('click', (e) => {

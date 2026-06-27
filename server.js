@@ -360,6 +360,16 @@ app.get('/api/files', requireAuth, (req, res) => {
     where.push('f.id IN (SELECT file_id FROM product_codes WHERE code = ? COLLATE NOCASE)');
     params.push(code);
   }
+  // Per-column text filters (each a partial match over that column's fields)
+  const colFilter = (value, columns) => {
+    const v = (value || '').toString().trim();
+    if (!v) return;
+    where.push(`(${columns.map((c) => `${c} LIKE ?`).join(' OR ')})`);
+    columns.forEach(() => params.push(`%${v}%`));
+  };
+  colFilter(req.query.docref, ['f.doc_no', 'f.revision', 'f.doc_date']);
+  colFilter(req.query.title, ['f.title', 'f.product_name']);
+  colFilter(req.query.by, ['u.username']);
   axisFilter(req.query.type, 'doc_type_id');
   axisFilter(req.query.department, 'department_id');
   axisFilter(req.query.customer, 'customer_id');
