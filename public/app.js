@@ -136,7 +136,7 @@ function renderFiles(files) {
         <td>
           <div class="file-title">${esc(f.title)}</div>
           ${f.product_name ? `<div class="file-desc">品名: ${esc(f.product_name)}</div>` : ''}
-          ${f.product_no ? `<div class="file-desc">${esc(f.product_no)}</div>` : ''}
+          ${f.product_no ? `<div class="file-desc">品番: ${esc(f.product_no)}</div>` : ''}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
         </td>
