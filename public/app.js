@@ -1,6 +1,134 @@
 'use strict';
 
 const $ = (sel) => document.querySelector(sel);
+
+// --- i18n (English / Thai) -------------------------------------------------
+const I18N = {
+  en: {
+    settings: '⚙ Settings', signout: 'Sign out',
+    barcode: '📷 Barcode', bulk: '⧉ Bulk', upload: '+ Upload',
+    searchPh: '🔍 Search by product no, document no, title, product name or document content',
+    sideType: 'Type', sideDept: 'Department', sideCust: 'Customer', sideProd: 'Product No.',
+    newType: 'New type', newDept: 'New department', newCust: 'New customer', add: 'Add', prodPh: 'e.g. DD360',
+    reviewDue: 'Review due (>2y)', showOld: 'Show old revisions',
+    colDoc: 'Doc No. / Rev', colTitle: 'Title', colType: 'Type', colDept: 'Department',
+    colCust: 'Customer', colSize: 'Size', colUploaded: 'Uploaded', colBy: 'By',
+    files: (n) => `${n} file${n === 1 ? '' : 's'}`,
+    due: (n) => ` · ${n} due for review`,
+    productName: 'Product name', productNo: 'Product No.',
+    current: (n) => `Current (${n} revisions)`, superseded: 'Superseded', badgeDue: '⚠ Review due (>2y)',
+    download: 'Download', del: 'Delete', noFiles: 'No matching files',
+    filteredBy: 'Filtered by product no', clear: '× Clear', all: 'All', none: 'None', selectDots: 'Select…',
+    scanTitle: '🔎 Find inspection spec (barcode / product no)',
+    scanHint: 'Point the camera at a QR / Data Matrix / barcode, or use a barcode reader / type a product number and press Enter.',
+    scanPh: 'Scan / type a product number…', close: 'Close',
+    searching: (c) => `Searching "${c}"…`, notFound: (c) => `❌ Not found: ${c}`,
+    opened: (d) => `✓ Opened ${d}`, matches: (n) => `${n} matches — choose a document to open:`,
+    pointCamera: 'Point the camera at a code…', cameraNoLoad: 'Camera scanner could not load.',
+    cameraErr: (e) => `Camera error: ${e}. HTTPS and camera permission are required.`,
+    bulkTitle: 'Bulk upload',
+    bulkHint: "Drop PDFs here, or browse. Type, Department and Customer are auto-detected from each document number / header. Files where Type or Department can't be detected are skipped — use the single Upload form for those.",
+    dropHere: 'Drop files here, or ', browse: 'browse',
+    bulkReading: (f) => `${f} … reading`, bulkRead: (f, e) => `${f} — could not read (${e})`,
+    bulkSkip: (f) => `${f} — skipped: Type/Department not detected (use single Upload)`,
+    bulkOk: (f, d) => `${f} ✓ ${d}`,
+    qrTitle: 'QR label', print: 'Print', qrHint: 'Scanning this code with the Barcode camera opens this document.',
+    setTitle: '⚙ Settings', setHint: 'Add, rename or delete the Types, Departments and Customers used across the system.',
+    rename: 'Rename', deleteW: 'Delete', noneYet: 'None yet',
+    logTitle: 'Recent access log', logHint: '(views & downloads)',
+    logWhen: 'When', logUser: 'User', logAction: 'Action', logDoc: 'Document', logNone: 'No access yet',
+    upTitle: 'Upload SOP file', upFile: 'File (PDF / Excel / Word)',
+    upDocNo: 'Document No.', upDocNoHint: '(auto-fills Type & Department, e.g. SOP-QC-0021)',
+    upType: 'Type', upDept: 'Department', upCust: 'Customer', upOptional: '(optional)',
+    upTitleF: 'Title', upTitlePh: 'Defaults to the file name if left blank',
+    upRev: 'Revision (Rev)', upDate: 'Document date', upProdName: '品名 / Product name', upSop: '(SOP, optional)',
+    upModel: 'Model', upProdNo: 'Product No.', upProdNoHint: '(barcode lookup key)',
+    upDesc: 'Description (optional)', cancel: 'Cancel',
+    reading: 'Reading header…', autofilled: '✓ Auto-filled from the document — please review before saving.',
+    noHeader: 'No header fields detected — please fill them in.', autoskip: (e) => `Auto-fill skipped (${e}) — please fill them in.`,
+    openNew: '↗ Open in new tab', vLoading: 'Loading… if it stays blank, use “Open in new tab”.',
+    vOffice: 'This file type cannot be previewed in the browser. Use Download to open it.',
+    vMissing: 'The file is missing on the server. On the free hosting plan, uploaded files are erased whenever the app restarts — re-upload it, or switch to persistent storage (local Docker / paid plan).',
+    vHttp: (s) => `Could not load the document (HTTP ${s}).`, vErr: (e) => `Could not load the document (${e}).`,
+    promptName: 'New name:', confirmDelFile: 'Delete this file?', confirmDelAxis: (l) => `Delete this ${l}?`,
+  },
+  th: {
+    settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
+    barcode: '📷 บาร์โค้ด', bulk: '⧉ หลายไฟล์', upload: '+ อัปโหลด',
+    searchPh: '🔍 ค้นหาด้วยรหัสสินค้า เลขเอกสาร ชื่อ ชื่อสินค้า หรือเนื้อหา',
+    sideType: 'ประเภท', sideDept: 'แผนก', sideCust: 'ลูกค้า', sideProd: 'รหัสสินค้า',
+    newType: 'เพิ่มประเภท', newDept: 'เพิ่มแผนก', newCust: 'เพิ่มลูกค้า', add: 'เพิ่ม', prodPh: 'เช่น DD360',
+    reviewDue: 'ครบกำหนดทบทวน (>2 ปี)', showOld: 'แสดงฉบับเก่า',
+    colDoc: 'เลขเอกสาร / ฉบับ', colTitle: 'ชื่อเอกสาร', colType: 'ประเภท', colDept: 'แผนก',
+    colCust: 'ลูกค้า', colSize: 'ขนาด', colUploaded: 'อัปโหลดเมื่อ', colBy: 'โดย',
+    files: (n) => `${n} เอกสาร`,
+    due: (n) => ` · ${n} รายการครบกำหนดทบทวน`,
+    productName: 'ชื่อสินค้า', productNo: 'รหัสสินค้า',
+    current: (n) => `ปัจจุบัน (${n} ฉบับ)`, superseded: 'ฉบับเก่า', badgeDue: '⚠ ครบกำหนดทบทวน (>2 ปี)',
+    download: 'ดาวน์โหลด', del: 'ลบ', noFiles: 'ไม่พบเอกสาร',
+    filteredBy: 'กรองตามรหัสสินค้า', clear: '× ล้าง', all: 'ทั้งหมด', none: 'ไม่ระบุ', selectDots: 'เลือก…',
+    scanTitle: '🔎 ค้นหาเอกสารตรวจสอบ (บาร์โค้ด / รหัสสินค้า)',
+    scanHint: 'ส่องกล้องไปที่ QR / Data Matrix / บาร์โค้ด หรือใช้เครื่องอ่านบาร์โค้ด / พิมพ์รหัสสินค้าแล้วกด Enter',
+    scanPh: 'สแกน / พิมพ์รหัสสินค้า…', close: 'ปิด',
+    searching: (c) => `กำลังค้นหา "${c}"…`, notFound: (c) => `❌ ไม่พบ: ${c}`,
+    opened: (d) => `✓ เปิด ${d}`, matches: (n) => `พบ ${n} รายการ — เลือกเอกสารที่จะเปิด:`,
+    pointCamera: 'ส่องกล้องไปที่โค้ด…', cameraNoLoad: 'โหลดตัวสแกนกล้องไม่สำเร็จ',
+    cameraErr: (e) => `กล้องผิดพลาด: ${e} ต้องใช้ HTTPS และอนุญาตกล้อง`,
+    bulkTitle: 'อัปโหลดหลายไฟล์',
+    bulkHint: 'วางไฟล์ PDF ที่นี่ หรือเลือกไฟล์ ระบบจะตรวจหาประเภท แผนก และลูกค้าจากเลขเอกสาร/หัวเอกสารโดยอัตโนมัติ ไฟล์ที่ตรวจประเภท/แผนกไม่ได้จะถูกข้าม — ใช้ฟอร์มอัปโหลดทีละไฟล์แทน',
+    dropHere: 'วางไฟล์ที่นี่ หรือ ', browse: 'เลือกไฟล์',
+    bulkReading: (f) => `${f} … กำลังอ่าน`, bulkRead: (f, e) => `${f} — อ่านไม่สำเร็จ (${e})`,
+    bulkSkip: (f) => `${f} — ข้าม: ตรวจประเภท/แผนกไม่ได้ (ใช้อัปโหลดทีละไฟล์)`,
+    bulkOk: (f, d) => `${f} ✓ ${d}`,
+    qrTitle: 'ป้าย QR', print: 'พิมพ์', qrHint: 'สแกนโค้ดนี้ด้วยกล้องบาร์โค้ดเพื่อเปิดเอกสารนี้',
+    setTitle: '⚙ ตั้งค่า', setHint: 'เพิ่ม แก้ชื่อ หรือลบ ประเภท แผนก และลูกค้า ที่ใช้ในระบบ',
+    rename: 'แก้ชื่อ', deleteW: 'ลบ', noneYet: 'ยังไม่มี',
+    logTitle: 'ประวัติการเข้าถึงล่าสุด', logHint: '(เปิดดู & ดาวน์โหลด)',
+    logWhen: 'เมื่อ', logUser: 'ผู้ใช้', logAction: 'การกระทำ', logDoc: 'เอกสาร', logNone: 'ยังไม่มีการเข้าถึง',
+    upTitle: 'อัปโหลดเอกสาร SOP', upFile: 'ไฟล์ (PDF / Excel / Word)',
+    upDocNo: 'เลขเอกสาร', upDocNoHint: '(เติมประเภท & แผนกอัตโนมัติ เช่น SOP-QC-0021)',
+    upType: 'ประเภท', upDept: 'แผนก', upCust: 'ลูกค้า', upOptional: '(ไม่บังคับ)',
+    upTitleF: 'ชื่อเอกสาร', upTitlePh: 'หากเว้นว่างจะใช้ชื่อไฟล์',
+    upRev: 'ฉบับแก้ไข (Rev)', upDate: 'วันที่เอกสาร', upProdName: 'ชื่อสินค้า', upSop: '(SOP, ไม่บังคับ)',
+    upModel: 'รุ่น (Model)', upProdNo: 'รหัสสินค้า', upProdNoHint: '(ใช้ค้นด้วยบาร์โค้ด)',
+    upDesc: 'รายละเอียด (ไม่บังคับ)', cancel: 'ยกเลิก',
+    reading: 'กำลังอ่านหัวเอกสาร…', autofilled: '✓ เติมจากเอกสารแล้ว — โปรดตรวจก่อนบันทึก',
+    noHeader: 'ไม่พบข้อมูลหัวเอกสาร — โปรดกรอกเอง', autoskip: (e) => `ข้ามการเติมอัตโนมัติ (${e}) — โปรดกรอกเอง`,
+    openNew: '↗ เปิดในแท็บใหม่', vLoading: 'กำลังโหลด… หากยังว่าง ให้ใช้ “เปิดในแท็บใหม่”',
+    vOffice: 'ไฟล์ประเภทนี้แสดงตัวอย่างในเบราว์เซอร์ไม่ได้ กรุณาดาวน์โหลด',
+    vMissing: 'ไม่พบไฟล์บนเซิร์ฟเวอร์ ในแพ็กเกจฟรี ไฟล์ที่อัปโหลดจะถูกลบเมื่อแอปรีสตาร์ท — อัปโหลดใหม่ หรือเปลี่ยนไปใช้ที่เก็บถาวร',
+    vHttp: (s) => `โหลดเอกสารไม่สำเร็จ (HTTP ${s})`, vErr: (e) => `โหลดเอกสารไม่สำเร็จ (${e})`,
+    promptName: 'ชื่อใหม่:', confirmDelFile: 'ลบเอกสารนี้?', confirmDelAxis: (l) => `ลบ ${l} นี้?`,
+  },
+};
+let LANG = localStorage.getItem('lang') === 'th' ? 'th' : 'en';
+function t(key, ...args) {
+  const v = (I18N[LANG] && I18N[LANG][key]) ?? I18N.en[key] ?? key;
+  return typeof v === 'function' ? v(...args) : v;
+}
+function applyLang(lang) {
+  if (lang) {
+    LANG = lang;
+    localStorage.setItem('lang', lang);
+  }
+  document.documentElement.lang = LANG;
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach((el) => {
+    el.placeholder = t(el.dataset.i18nPh);
+  });
+  const tog = $('#langToggle');
+  if (tog) tog.textContent = LANG === 'en' ? 'ไทย' : 'EN';
+  // Re-render the parts built in JS so their language updates too
+  for (const k of Object.keys(AXES)) {
+    renderAxis(k);
+    renderAxisOptions(k);
+  }
+  renderActiveCode();
+  if (lastFiles.length || $('#fileRows').children.length) renderFiles(lastFiles);
+  if ($('#settingsDialog').open) renderSettings();
+}
 // One descriptor per filter axis keeps the two lists (type / department) DRY.
 const AXES = {
   type: {
@@ -117,9 +245,9 @@ function renderAxis(key) {
   const axis = AXES[key];
   const s = state[key];
   const total = s.items.reduce((sum, c) => sum + c.file_count, 0);
-  const items = [{ id: 'all', name: 'All', file_count: total, fixed: true }, ...s.items];
+  const items = [{ id: 'all', name: t('all'), file_count: total, fixed: true }, ...s.items];
   // Optional axes can have unassigned files — offer a "None" filter for them
-  if (axis.optional) items.push({ id: 'none', name: 'None', file_count: -1, fixed: true });
+  if (axis.optional) items.push({ id: 'none', name: t('none'), file_count: -1, fixed: true });
   $(axis.listEl).innerHTML = items
     .map((c) => {
       const active = String(s.active) === String(c.id) ? ' active' : '';
@@ -140,8 +268,8 @@ function renderAxisOptions(key) {
     .join('');
   // Optional selects allow an empty choice; required ones force an explicit pick
   $(axis.uploadEl).innerHTML = axis.optional
-    ? `<option value="">— (none)</option>${opts}`
-    : `<option value="" disabled selected>Select…</option>${opts}`;
+    ? `<option value="">— (${t('none')})</option>${opts}`
+    : `<option value="" disabled selected>${t('selectDots')}</option>${opts}`;
 }
 
 // Clickable product-code chips — click one to filter the list by it
@@ -149,7 +277,7 @@ function codeChips(f) {
   // f.codes = space-separated product codes + the doc number; drop the doc no
   const codes = (f.codes || '').split(' ').filter((c) => c && c !== f.doc_no);
   if (codes.length === 0) {
-    return f.product_no ? `<div class="file-desc">Product No.: ${esc(f.product_no)}</div>` : '';
+    return f.product_no ? `<div class="file-desc">${t('productNo')}: ${esc(f.product_no)}</div>` : '';
   }
   const chips = codes
     .map(
@@ -157,7 +285,7 @@ function codeChips(f) {
         `<button class="code-chip${state.code === c ? ' active' : ''}" data-code="${esc(c)}">${esc(c)}</button>`
     )
     .join('');
-  return `<div class="code-chips">Product No.: ${chips}</div>`;
+  return `<div class="code-chips">${t('productNo')}: ${chips}</div>`;
 }
 
 // Open a document in the in-app preview (no download needed)
@@ -189,8 +317,7 @@ async function openView(id, name, pdf) {
     frame.hidden = true;
     $('#viewNewTab').hidden = true;
     notice.hidden = false;
-    notice.textContent =
-      'This file type cannot be previewed in the browser. Use Download to open it.';
+    notice.textContent = t('vOffice');
     return;
   }
 
@@ -211,10 +338,7 @@ async function openView(id, name, pdf) {
       frame.hidden = true;
       loading.hidden = true;
       notice.hidden = false;
-      notice.textContent =
-        res.status === 410
-          ? 'The file is missing on the server. On the free hosting plan, uploaded files are erased whenever the app restarts — re-upload it, or switch to persistent storage (local Docker / paid plan).'
-          : `Could not load the document (HTTP ${res.status}).`;
+      notice.textContent = res.status === 410 ? t('vMissing') : t('vHttp', res.status);
       return;
     }
     const blob = await res.blob();
@@ -227,7 +351,7 @@ async function openView(id, name, pdf) {
     frame.hidden = true;
     loading.hidden = true;
     notice.hidden = false;
-    notice.textContent = `Could not load the document (${err.message}).`;
+    notice.textContent = t('vErr', err.message);
   }
 }
 
@@ -251,7 +375,7 @@ async function processBulk(fileList) {
   for (const file of [...fileList]) {
     const li = document.createElement('li');
     li.className = 'scan-hit';
-    li.textContent = `${file.name} … reading`;
+    li.textContent = t('bulkReading', file.name);
     list.appendChild(li);
     await bulkOne(file, li);
   }
@@ -267,14 +391,14 @@ async function bulkOne(file, li) {
     meta = await api('/api/extract', { method: 'POST', body: fd });
   } catch (e) {
     li.className = 'scan-hit bulk-warn';
-    li.textContent = `${file.name} — could not read (${e.message})`;
+    li.textContent = t('bulkRead', file.name, e.message);
     return;
   }
   const typeId = matchId('type', meta.type_code);
   const deptId = matchId('department', meta.dept_code);
   if (!typeId || !deptId) {
     li.className = 'scan-hit bulk-warn';
-    li.textContent = `${file.name} — skipped: Type/Department not detected (use single Upload)`;
+    li.textContent = t('bulkSkip', file.name);
     return;
   }
   const up = new FormData();
@@ -290,7 +414,7 @@ async function bulkOne(file, li) {
   try {
     await api('/api/files', { method: 'POST', body: up });
     li.className = 'scan-hit bulk-ok';
-    li.textContent = `${file.name} ✓ ${meta.doc_no || meta.title || 'uploaded'}`;
+    li.textContent = t('bulkOk', file.name, meta.doc_no || meta.title || '');
   } catch (e) {
     li.className = 'scan-hit bulk-warn';
     li.textContent = `${file.name} — ${e.message}`;
@@ -372,8 +496,8 @@ function renderActiveCode() {
     return;
   }
   el.hidden = false;
-  el.innerHTML = `Filtered by product no <strong>${esc(state.code)}</strong>
-    <button id="clearCode" class="ghost">× Clear</button>`;
+  el.innerHTML = `${t('filteredBy')} <strong>${esc(state.code)}</strong>
+    <button id="clearCode" class="ghost">${t('clear')}</button>`;
 }
 function setCodeFilter(code) {
   state.code = code || '';
@@ -392,12 +516,12 @@ function renderSettings() {
             (c) => `<li data-id="${c.id}" data-axis="${axis}" data-name="${esc(c.name)}">
               <span class="s-name">${esc(c.name)}</span>
               <span class="s-count" title="files">${c.file_count}</span>
-              <button type="button" class="btn-link s-rename">Rename</button>
-              <button type="button" class="btn-link danger s-del">Delete</button>
+              <button type="button" class="btn-link s-rename">${t('rename')}</button>
+              <button type="button" class="btn-link danger s-del">${t('deleteW')}</button>
             </li>`
           )
           .join('')
-      : '<li class="muted">None yet</li>';
+      : `<li class="muted">${t('noneYet')}</li>`;
   });
 }
 
@@ -417,9 +541,9 @@ async function renderLogs() {
             </tr>`
           )
           .join('')
-      : '<tr><td colspan="4" class="empty">No access yet</td></tr>';
+      : `<tr><td colspan="4" class="empty">${t('logNone')}</td></tr>`;
   } catch {
-    tbody.innerHTML = '<tr><td colspan="4" class="empty">Could not load the log</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">${t('logNone')}</td></tr>`;
   }
 }
 
@@ -445,12 +569,10 @@ function renderFiles(files) {
   files = sortFiles(files);
   if (state.expiredOnly) files = files.filter(isExpired);
   const dueCount = files.reduce((n, f) => n + (isExpired(f) ? 1 : 0), 0);
-  $('#listInfo').textContent =
-    `${files.length} file${files.length === 1 ? '' : 's'}` +
-    (dueCount ? ` · ${dueCount} due for review` : '');
+  $('#listInfo').textContent = t('files', files.length) + (dueCount ? t('due', dueCount) : '');
   const tbody = $('#fileRows');
   if (files.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10" class="empty">No matching files</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty">${t('noFiles')}</td></tr>`;
     return;
   }
   tbody.innerHTML = files
@@ -464,15 +586,15 @@ function renderFiles(files) {
           ${
             f.is_current
               ? f.revision_count > 1
-                ? `<span class="rev-badge current">Current (${f.revision_count} revisions)</span>`
+                ? `<span class="rev-badge current">${t('current', f.revision_count)}</span>`
                 : ''
-              : `<span class="rev-badge old">Superseded</span>`
+              : `<span class="rev-badge old">${t('superseded')}</span>`
           }
-          ${isExpired(f) ? '<span class="rev-badge due">⚠ Review due (&gt;2y)</span>' : ''}
+          ${isExpired(f) ? `<span class="rev-badge due">${t('badgeDue')}</span>` : ''}
         </td>
         <td>
           <button class="file-title link-title view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">${esc(f.title)}</button>
-          ${f.product_name ? `<div class="file-desc">Product name: ${esc(f.product_name)}</div>` : ''}
+          ${f.product_name ? `<div class="file-desc">${t('productName')}: ${esc(f.product_name)}</div>` : ''}
           ${codeChips(f)}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
@@ -485,8 +607,8 @@ function renderFiles(files) {
         <td>${esc(f.uploaded_by_name || '-')}</td>
         <td class="actions">
           <button class="btn-link qr-file" data-code="${esc(f.doc_no || f.title)}" data-label="${esc([f.doc_no, f.title].filter(Boolean).join(' — '))}">QR</button>
-          <a class="btn-link" href="/api/files/${f.id}/download">Download</a>
-          <button class="btn-link danger del-file" data-id="${f.id}">Delete</button>
+          <a class="btn-link" href="/api/files/${f.id}/download">${t('download')}</a>
+          <button class="btn-link danger del-file" data-id="${f.id}">${t('del')}</button>
         </td>
       </tr>`
     )
@@ -502,7 +624,7 @@ function bindAxisEvents(key) {
     const del = e.target.closest('.del-item');
     if (del) {
       e.stopPropagation();
-      if (!confirm(`Delete this ${axis.label}?`)) return;
+      if (!confirm(t('confirmDelAxis', axis.label))) return;
       try {
         await api(`${axis.api}/${del.dataset.id}`, { method: 'DELETE' });
       } catch (err) {
@@ -539,6 +661,9 @@ function bindAddForm(formSel, inputSel, key) {
 }
 
 function bindEvents() {
+  // Language toggle (EN / TH)
+  $('#langToggle').addEventListener('click', () => applyLang(LANG === 'en' ? 'th' : 'en'));
+
   // Collapse / expand the sidebar filter sections (collapsed by default)
   document.querySelectorAll('.axis-toggle').forEach((h) => {
     h.addEventListener('click', () => h.closest('.axis-section').classList.toggle('collapsed'));
@@ -620,7 +745,7 @@ function bindEvents() {
   $('#fileRows').addEventListener('click', async (e) => {
     const del = e.target.closest('.del-file');
     if (!del) return;
-    if (!confirm('Delete this file?')) return;
+    if (!confirm(t('confirmDelFile'))) return;
     await api(`/api/files/${del.dataset.id}`, { method: 'DELETE' });
     await loadFiles();
     await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
@@ -642,16 +767,16 @@ function bindEvents() {
     const results = $('#scanResults');
     results.innerHTML = '';
     if (!code) return;
-    setScanStatus(`Searching "${code}"…`, '');
+    setScanStatus(t('searching', code), '');
     try {
       const files = await api(`/api/lookup?code=${encodeURIComponent(code)}`);
       if (files.length === 0) {
-        setScanStatus(`❌ Not found: ${code}`, 'warn');
+        setScanStatus(t('notFound', code), 'warn');
       } else if (files.length === 1) {
-        setScanStatus(`✓ Opened ${files[0].doc_no || files[0].title}`, 'ok');
+        setScanStatus(t('opened', files[0].doc_no || files[0].title), 'ok');
         openInline(files[0].id);
       } else {
-        setScanStatus(`${files.length} matches — choose a document to open:`, 'ok');
+        setScanStatus(t('matches', files.length), 'ok');
         results.innerHTML = files
           .map(
             (f) => `<li class="scan-hit" data-id="${f.id}">
@@ -664,7 +789,7 @@ function bindEvents() {
           .join('');
       }
     } catch (err) {
-      setScanStatus(`Error: ${err.message}`, 'warn');
+      setScanStatus(`${err.message}`, 'warn');
     }
   }
 
@@ -672,14 +797,14 @@ function bindEvents() {
   let codeReader = null;
   async function startCamera() {
     if (!window.ZXing) {
-      setScanStatus('Camera scanner could not load.', 'warn');
+      setScanStatus(t('cameraNoLoad'), 'warn');
       return;
     }
     const video = $('#scanVideo');
     try {
       codeReader = new ZXing.BrowserMultiFormatReader();
       video.hidden = false;
-      setScanStatus('Point the camera at a code…', '');
+      setScanStatus(t('pointCamera'), '');
       const onResult = (result) => {
         if (!result) return;
         const code = result.getText();
@@ -698,7 +823,7 @@ function bindEvents() {
         await codeReader.decodeFromVideoDevice(null, video, onResult);
       }
     } catch (err) {
-      setScanStatus(`Camera error: ${err.message || err}. HTTPS and camera permission are required.`, 'warn');
+      setScanStatus(t('cameraErr', err.message || err), 'warn');
       stopCamera();
     }
   }
@@ -753,7 +878,7 @@ function bindEvents() {
     const axis = li.dataset.axis;
     const id = li.dataset.id;
     if (e.target.closest('.s-rename')) {
-      const name = prompt('New name:', li.dataset.name);
+      const name = prompt(t('promptName'), li.dataset.name);
       if (name === null) return;
       const v = name.trim();
       if (!v || v === li.dataset.name) return;
@@ -769,7 +894,7 @@ function bindEvents() {
       }
       await afterSettingsChange(axis);
     } else if (e.target.closest('.s-del')) {
-      if (!confirm(`Delete this ${AXES[axis].label}?`)) return;
+      if (!confirm(t('confirmDelAxis', AXES[axis].label))) return;
       try {
         await api(`${AXES[axis].api}/${id}`, { method: 'DELETE' });
       } catch (err) {
@@ -865,7 +990,7 @@ function bindEvents() {
     const status = $('#extractStatus');
     status.hidden = false;
     status.className = 'extract-status';
-    status.textContent = 'Reading header…';
+    status.textContent = t('reading');
     try {
       const fd = new FormData();
       fd.append('file', f);
@@ -885,12 +1010,10 @@ function bindEvents() {
       if (!$('#uploadCustomer').value) matchAxisByName('customer', meta.customer_name);
       applyDocNo();
       const found = meta.doc_no || meta.title || meta.revision;
-      status.textContent = found
-        ? '✓ Auto-filled from the document — please review before saving.'
-        : 'No header fields detected — please fill them in.';
+      status.textContent = found ? t('autofilled') : t('noHeader');
       status.classList.add(found ? 'ok' : 'warn');
     } catch (err) {
-      status.textContent = `Auto-fill skipped (${err.message}) — please fill them in.`;
+      status.textContent = t('autoskip', err.message);
       status.classList.add('warn');
     }
   });
@@ -934,6 +1057,7 @@ async function init() {
     return; // api() already redirected on 401
   }
   bindEvents();
+  applyLang(); // apply the saved language to static labels
   api('/api/version')
     .then(({ version }) => {
       $('#appVer').textContent = `v${version}`;

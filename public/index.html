@@ -23,9 +23,10 @@
       </div>
       <div class="user-box">
         <span id="me"></span>
-        <button id="settingsOpen" class="ghost" type="button">⚙ Settings</button>
+        <button id="langToggle" class="ghost" type="button">ไทย</button>
+        <button id="settingsOpen" class="ghost" type="button" data-i18n="settings">⚙ Settings</button>
         <form method="post" action="/logout" class="inline">
-          <button class="ghost" type="submit">Sign out</button>
+          <button class="ghost" type="submit" data-i18n="signout">Sign out</button>
         </form>
       </div>
     </header>
@@ -35,45 +36,45 @@
       <aside class="sidebar">
         <!-- Document type axis (QP / SOP / Format) -->
         <section class="axis-section collapsed">
-          <h2 class="axis-toggle">Type <span class="chevron">▸</span></h2>
+          <h2 class="axis-toggle"><span data-i18n="sideType">Type</span> <span class="chevron">▸</span></h2>
           <div class="axis-body">
             <ul id="typeList" class="filter-list"></ul>
             <form id="typeForm" class="add-filter">
-              <input type="text" id="newType" placeholder="New type" maxlength="50" />
-              <button type="submit">Add</button>
+              <input type="text" id="newType" data-i18n-ph="newType" placeholder="New type" maxlength="50" />
+              <button type="submit" data-i18n="add">Add</button>
             </form>
           </div>
         </section>
 
         <!-- Department axis -->
         <section class="axis-section collapsed">
-          <h2 class="axis-toggle">Department <span class="chevron">▸</span></h2>
+          <h2 class="axis-toggle"><span data-i18n="sideDept">Department</span> <span class="chevron">▸</span></h2>
           <div class="axis-body">
             <ul id="departmentList" class="filter-list"></ul>
             <form id="departmentForm" class="add-filter">
-              <input type="text" id="newDepartment" placeholder="New department" maxlength="50" />
-              <button type="submit">Add</button>
+              <input type="text" id="newDepartment" data-i18n-ph="newDept" placeholder="New department" maxlength="50" />
+              <button type="submit" data-i18n="add">Add</button>
             </form>
           </div>
         </section>
 
         <!-- Customer axis (optional) -->
         <section class="axis-section collapsed">
-          <h2 class="axis-toggle">Customer <span class="chevron">▸</span></h2>
+          <h2 class="axis-toggle"><span data-i18n="sideCust">Customer</span> <span class="chevron">▸</span></h2>
           <div class="axis-body">
             <ul id="customerList" class="filter-list"></ul>
             <form id="customerForm" class="add-filter">
-              <input type="text" id="newCustomer" placeholder="New customer" maxlength="50" />
-              <button type="submit">Add</button>
+              <input type="text" id="newCustomer" data-i18n-ph="newCust" placeholder="New customer" maxlength="50" />
+              <button type="submit" data-i18n="add">Add</button>
             </form>
           </div>
         </section>
 
         <!-- Product No. filter -->
         <section class="axis-section">
-          <h2 class="axis-toggle">Product No. <span class="chevron">▸</span></h2>
+          <h2 class="axis-toggle"><span data-i18n="sideProd">Product No.</span> <span class="chevron">▸</span></h2>
           <div class="axis-body">
-            <input type="search" id="productFilter" class="sidebar-input" placeholder="e.g. DD360" />
+            <input type="search" id="productFilter" class="sidebar-input" data-i18n-ph="prodPh" placeholder="e.g. DD360" />
           </div>
         </section>
       </aside>
@@ -81,10 +82,10 @@
       <main class="content">
         <!-- Search bar -->
         <section class="searchbar">
-          <input type="search" id="search" placeholder="🔍 Search by product no, document no, title, product name or document content" />
-          <button id="scanOpen" class="ghost">📷 Barcode</button>
-          <button id="bulkOpen" class="ghost">⧉ Bulk</button>
-          <button id="uploadOpen" class="primary">+ Upload</button>
+          <input type="search" id="search" data-i18n-ph="searchPh" placeholder="🔍 Search by product no, document no, title, product name or document content" />
+          <button id="scanOpen" class="ghost" data-i18n="barcode">📷 Barcode</button>
+          <button id="bulkOpen" class="ghost" data-i18n="bulk">⧉ Bulk</button>
+          <button id="uploadOpen" class="primary" data-i18n="upload">+ Upload</button>
         </section>
 
         <!-- File list -->
@@ -94,10 +95,10 @@
             <p id="listInfo" class="list-info"></p>
             <div class="list-toggles">
               <label class="show-old">
-                <input type="checkbox" id="expiredOnly" /> Review due (&gt;2y)
+                <input type="checkbox" id="expiredOnly" /> <span data-i18n="reviewDue">Review due (&gt;2y)</span>
               </label>
               <label class="show-old">
-                <input type="checkbox" id="showOld" /> Show old revisions
+                <input type="checkbox" id="showOld" /> <span data-i18n="showOld">Show old revisions</span>
               </label>
             </div>
           </div>
@@ -106,14 +107,14 @@
             <thead>
               <tr>
                 <th></th>
-                <th class="sortable" data-sort="doc_no">Doc No. / Rev <span class="arrow"></span></th>
-                <th class="sortable" data-sort="title">Title <span class="arrow"></span></th>
-                <th class="sortable" data-sort="doc_type_name">Type <span class="arrow"></span></th>
-                <th class="sortable" data-sort="department_name">Department <span class="arrow"></span></th>
-                <th class="sortable" data-sort="customer_name">Customer <span class="arrow"></span></th>
-                <th class="sortable" data-sort="size">Size <span class="arrow"></span></th>
-                <th class="sortable" data-sort="uploaded_at">Uploaded <span class="arrow"></span></th>
-                <th class="sortable" data-sort="uploaded_by_name">By <span class="arrow"></span></th>
+                <th class="sortable" data-sort="doc_no"><span data-i18n="colDoc">Doc No. / Rev</span> <span class="arrow"></span></th>
+                <th class="sortable" data-sort="title"><span data-i18n="colTitle">Title</span> <span class="arrow"></span></th>
+                <th class="sortable" data-sort="doc_type_name"><span data-i18n="colType">Type</span> <span class="arrow"></span></th>
+                <th class="sortable" data-sort="department_name"><span data-i18n="colDept">Department</span> <span class="arrow"></span></th>
+                <th class="sortable" data-sort="customer_name"><span data-i18n="colCust">Customer</span> <span class="arrow"></span></th>
+                <th class="sortable" data-sort="size"><span data-i18n="colSize">Size</span> <span class="arrow"></span></th>
+                <th class="sortable" data-sort="uploaded_at"><span data-i18n="colUploaded">Uploaded</span> <span class="arrow"></span></th>
+                <th class="sortable" data-sort="uploaded_by_name"><span data-i18n="colBy">By</span> <span class="arrow"></span></th>
                 <th></th>
               </tr>
             </thead>
@@ -129,12 +130,12 @@
       <div class="viewer-head">
         <span id="viewTitle" class="viewer-title"></span>
         <span class="viewer-actions">
-          <a id="viewNewTab" class="btn-link" href="#" target="_blank" rel="noopener">↗ Open in new tab</a>
-          <a id="viewDownload" class="btn-link" href="#">⬇ Download</a>
-          <button type="button" id="viewClose" class="ghost">✕ Close</button>
+          <a id="viewNewTab" class="btn-link" href="#" target="_blank" rel="noopener" data-i18n="openNew">↗ Open in new tab</a>
+          <a id="viewDownload" class="btn-link" href="#" data-i18n="download">⬇ Download</a>
+          <button type="button" id="viewClose" class="ghost" data-i18n="close">✕ Close</button>
         </span>
       </div>
-      <p id="viewLoading" class="viewer-loading" hidden>Loading… if it stays blank, use “Open in new tab”.</p>
+      <p id="viewLoading" class="viewer-loading" hidden data-i18n="vLoading">Loading… if it stays blank, use “Open in new tab”.</p>
       <iframe id="viewFrame" class="viewer-frame" title="Document preview"></iframe>
       <p id="viewNotice" class="viewer-notice" hidden></p>
     </dialog>
@@ -142,11 +143,12 @@
     <!-- Barcode / product-number lookup modal (for the inspection station) -->
     <dialog id="scanDialog">
       <form id="scanForm" method="dialog">
-        <h2>🔎 Find inspection spec (barcode / product no)</h2>
-        <p class="hint">Point the camera at a QR / Data Matrix / barcode, or use a barcode reader / type a product number and press Enter.</p>
+        <h2 data-i18n="scanTitle">🔎 Find inspection spec (barcode / product no)</h2>
+        <p class="hint" data-i18n="scanHint">Point the camera at a QR / Data Matrix / barcode, or use a barcode reader / type a product number and press Enter.</p>
         <input
           type="text"
           id="scanInput"
+          data-i18n-ph="scanPh"
           placeholder="Scan / type a product number…"
           autocomplete="off"
           inputmode="text"
@@ -155,7 +157,7 @@
         <p id="scanStatus" class="extract-status" hidden></p>
         <ul id="scanResults" class="scan-results"></ul>
         <div class="dialog-actions">
-          <button type="button" id="scanClose" class="ghost">Close</button>
+          <button type="button" id="scanClose" class="ghost" data-i18n="close">Close</button>
         </div>
       </form>
     </dialog>
@@ -163,14 +165,14 @@
     <!-- Bulk upload (drag & drop, auto-extract each) -->
     <dialog id="bulkDialog">
       <form method="dialog">
-        <h2>Bulk upload</h2>
-        <p class="hint">Drop PDFs here, or browse. Type, Department and Customer are auto-detected from each document number / header. Files where Type or Department can't be detected are skipped — use the single Upload form for those.</p>
+        <h2 data-i18n="bulkTitle">Bulk upload</h2>
+        <p class="hint" data-i18n="bulkHint">Drop PDFs here, or browse. Type, Department and Customer are auto-detected from each document number / header. Files where Type or Department can't be detected are skipped — use the single Upload form for those.</p>
         <div id="bulkDrop" class="bulk-drop">
-          Drop files here, or <label class="link-title">browse<input type="file" id="bulkInput" multiple accept=".pdf,.xls,.xlsx,.doc,.docx" hidden /></label>
+          <span data-i18n="dropHere">Drop files here, or </span><label class="link-title"><span data-i18n="browse">browse</span><input type="file" id="bulkInput" multiple accept=".pdf,.xls,.xlsx,.doc,.docx" hidden /></label>
         </div>
         <ul id="bulkResults" class="scan-results"></ul>
         <div class="dialog-actions">
-          <button type="button" id="bulkClose" class="ghost">Close</button>
+          <button type="button" id="bulkClose" class="ghost" data-i18n="close">Close</button>
         </div>
       </form>
     </dialog>
@@ -178,57 +180,57 @@
     <!-- QR label (printable) -->
     <dialog id="qrDialog" class="qr">
       <div class="qr-head">
-        <span class="viewer-title">QR label</span>
+        <span class="viewer-title" data-i18n="qrTitle">QR label</span>
         <span class="viewer-actions">
-          <button type="button" id="qrPrint" class="primary">Print</button>
-          <button type="button" id="qrClose" class="ghost">Close</button>
+          <button type="button" id="qrPrint" class="primary" data-i18n="print">Print</button>
+          <button type="button" id="qrClose" class="ghost" data-i18n="close">Close</button>
         </span>
       </div>
       <div id="qrCode" class="qr-code"></div>
       <div id="qrText" class="qr-text"></div>
-      <p class="hint">Scanning this code with the Barcode camera opens this document.</p>
+      <p class="hint" data-i18n="qrHint">Scanning this code with the Barcode camera opens this document.</p>
     </dialog>
 
     <!-- Settings: manage Types / Departments / Customers -->
     <dialog id="settingsDialog" class="settings">
       <div class="settings-head">
-        <h2>⚙ Settings</h2>
-        <button type="button" id="settingsClose" class="ghost">Close</button>
+        <h2 data-i18n="setTitle">⚙ Settings</h2>
+        <button type="button" id="settingsClose" class="ghost" data-i18n="close">Close</button>
       </div>
-      <p class="hint">Add, rename or delete the Types, Departments and Customers used across the system.</p>
+      <p class="hint" data-i18n="setHint">Add, rename or delete the Types, Departments and Customers used across the system.</p>
       <div class="settings-body">
         <div class="settings-col" data-axis="type">
-          <h3>Type</h3>
+          <h3 data-i18n="sideType">Type</h3>
           <ul class="settings-list"></ul>
           <form class="settings-add">
-            <input type="text" maxlength="50" placeholder="Add type" />
-            <button type="submit">Add</button>
+            <input type="text" maxlength="50" data-i18n-ph="newType" placeholder="Add type" />
+            <button type="submit" data-i18n="add">Add</button>
           </form>
         </div>
         <div class="settings-col" data-axis="department">
-          <h3>Department</h3>
+          <h3 data-i18n="sideDept">Department</h3>
           <ul class="settings-list"></ul>
           <form class="settings-add">
-            <input type="text" maxlength="50" placeholder="Add department" />
-            <button type="submit">Add</button>
+            <input type="text" maxlength="50" data-i18n-ph="newDept" placeholder="Add department" />
+            <button type="submit" data-i18n="add">Add</button>
           </form>
         </div>
         <div class="settings-col" data-axis="customer">
-          <h3>Customer</h3>
+          <h3 data-i18n="sideCust">Customer</h3>
           <ul class="settings-list"></ul>
           <form class="settings-add">
-            <input type="text" maxlength="50" placeholder="Add customer" />
-            <button type="submit">Add</button>
+            <input type="text" maxlength="50" data-i18n-ph="newCust" placeholder="Add customer" />
+            <button type="submit" data-i18n="add">Add</button>
           </form>
         </div>
       </div>
 
       <div class="settings-logs">
-        <h3>Recent access log <span class="hint">(views &amp; downloads)</span></h3>
+        <h3><span data-i18n="logTitle">Recent access log</span> <span class="hint" data-i18n="logHint">(views &amp; downloads)</span></h3>
         <div class="table-wrap">
           <table class="file-table">
             <thead>
-              <tr><th>When</th><th>User</th><th>Action</th><th>Document</th></tr>
+              <tr><th data-i18n="logWhen">When</th><th data-i18n="logUser">User</th><th data-i18n="logAction">Action</th><th data-i18n="logDoc">Document</th></tr>
             </thead>
             <tbody id="logRows"></tbody>
           </table>
@@ -239,66 +241,66 @@
     <!-- Upload modal -->
     <dialog id="uploadDialog">
       <form id="uploadForm" method="dialog">
-        <h2>Upload SOP file</h2>
+        <h2 data-i18n="upTitle">Upload SOP file</h2>
         <label>
-          File (PDF / Excel / Word)
+          <span data-i18n="upFile">File (PDF / Excel / Word)</span>
           <input type="file" id="file" name="file" accept=".pdf,.xls,.xlsx,.doc,.docx" required />
         </label>
         <p id="extractStatus" class="extract-status" hidden></p>
         <label>
-          Document No. <span class="hint">(auto-fills Type &amp; Department, e.g. SOP-QC-0021)</span>
+          <span data-i18n="upDocNo">Document No.</span> <span class="hint" data-i18n="upDocNoHint">(auto-fills Type &amp; Department, e.g. SOP-QC-0021)</span>
           <input type="text" id="docNo" name="doc_no" placeholder="QP-QC-04" maxlength="100" />
         </label>
         <div class="field-row">
           <label>
-            Type <span class="req">*</span>
+            <span data-i18n="upType">Type</span> <span class="req">*</span>
             <select id="uploadType" name="doc_type_id" required></select>
           </label>
           <label>
-            Department <span class="req">*</span>
+            <span data-i18n="upDept">Department</span> <span class="req">*</span>
             <select id="uploadDepartment" name="department_id" required></select>
           </label>
         </div>
         <label>
-          Customer <span class="hint">(optional)</span>
+          <span data-i18n="upCust">Customer</span> <span class="hint" data-i18n="upOptional">(optional)</span>
           <select id="uploadCustomer" name="customer_id"></select>
         </label>
         <label>
-          Title
-          <input type="text" id="title" name="title" placeholder="Defaults to the file name if left blank" maxlength="200" />
+          <span data-i18n="upTitleF">Title</span>
+          <input type="text" id="title" name="title" data-i18n-ph="upTitlePh" placeholder="Defaults to the file name if left blank" maxlength="200" />
         </label>
         <div class="field-row">
           <label>
-            Revision (Rev)
+            <span data-i18n="upRev">Revision (Rev)</span>
             <input type="text" id="revision" name="revision" placeholder="16" maxlength="50" />
           </label>
           <label>
-            Document date
+            <span data-i18n="upDate">Document date</span>
             <input type="text" id="docDate" name="doc_date" placeholder="16-May-25" maxlength="50" />
           </label>
         </div>
         <label>
-          Product name <span class="hint">(SOP, optional)</span>
+          <span data-i18n="upProdName">Product name</span> <span class="hint" data-i18n="upSop">(SOP, optional)</span>
           <input type="text" id="productName" name="product_name" maxlength="200" />
         </label>
         <div class="field-row">
           <label>
-            Model <span class="hint">(optional)</span>
+            <span data-i18n="upModel">Model</span> <span class="hint" data-i18n="upOptional">(optional)</span>
             <input type="text" id="model" name="model" maxlength="200" />
           </label>
           <label>
-            Product No. <span class="hint">(barcode lookup key)</span>
+            <span data-i18n="upProdNo">Product No.</span> <span class="hint" data-i18n="upProdNoHint">(barcode lookup key)</span>
             <input type="text" id="productNo" name="product_no" maxlength="500" />
           </label>
         </div>
         <label>
-          Description (optional)
+          <span data-i18n="upDesc">Description (optional)</span>
           <textarea id="description" name="description" rows="2" maxlength="1000"></textarea>
         </label>
         <p id="uploadError" class="error" hidden></p>
         <div class="dialog-actions">
-          <button type="button" id="uploadCancel" class="ghost">Cancel</button>
-          <button type="submit" class="primary">Upload</button>
+          <button type="button" id="uploadCancel" class="ghost" data-i18n="cancel">Cancel</button>
+          <button type="submit" class="primary" data-i18n="upload">Upload</button>
         </div>
       </form>
     </dialog>
