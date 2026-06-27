@@ -321,6 +321,7 @@ const fileSelect = `
          f.department_id, d.name AS department_name,
          f.customer_id, cu.name AS customer_name,
          f.doc_no, f.revision, f.doc_date, f.model, f.product_name, f.product_no,
+         (SELECT GROUP_CONCAT(pc.code, ' ') FROM product_codes pc WHERE pc.file_id = f.id) AS codes,
          f.original_name, f.mimetype, f.size, f.uploaded_at,
          u.username AS uploaded_by_name
   FROM sop_files f
@@ -353,6 +354,12 @@ app.get('/api/files', requireAuth, (req, res) => {
       params.push(Number(value));
     }
   };
+  // Exact product-code (品番) filter — "show every document for this product"
+  const code = (req.query.code || '').toString().trim();
+  if (code) {
+    where.push('f.id IN (SELECT file_id FROM product_codes WHERE code = ? COLLATE NOCASE)');
+    params.push(code);
+  }
   axisFilter(req.query.type, 'doc_type_id');
   axisFilter(req.query.department, 'department_id');
   axisFilter(req.query.customer, 'customer_id');

@@ -31,6 +31,7 @@ const state = {
   department: { items: [], active: 'all' },
   customer: { items: [], active: 'all' },
   q: '',
+  code: '', // exact product-code (品番) filter, '' = none
 };
 
 // --- Utilities -------------------------------------------------------------
@@ -106,15 +107,50 @@ function renderAxisOptions(key) {
     : `<option value="" disabled selected>Select…</option>${opts}`;
 }
 
+// Clickable product-code (品番) chips — click one to filter the list by it
+function codeChips(f) {
+  // f.codes = space-separated product codes + the doc number; drop the doc no
+  const codes = (f.codes || '').split(' ').filter((c) => c && c !== f.doc_no);
+  if (codes.length === 0) {
+    return f.product_no ? `<div class="file-desc">品番: ${esc(f.product_no)}</div>` : '';
+  }
+  const chips = codes
+    .map(
+      (c) =>
+        `<button class="code-chip${state.code === c ? ' active' : ''}" data-code="${esc(c)}">${esc(c)}</button>`
+    )
+    .join('');
+  return `<div class="code-chips">品番: ${chips}</div>`;
+}
+
 // --- File list -------------------------------------------------------------
 async function loadFiles() {
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
+  if (state.code) params.set('code', state.code);
   for (const key of Object.keys(AXES)) {
     if (state[key].active !== 'all') params.set(AXES[key].queryKey, state[key].active);
   }
   const files = await api(`/api/files?${params.toString()}`);
   renderFiles(files);
+}
+
+// Active 品番 filter banner (set by clicking a product-code chip)
+function renderActiveCode() {
+  const el = $('#activeCode');
+  if (!state.code) {
+    el.hidden = true;
+    el.innerHTML = '';
+    return;
+  }
+  el.hidden = false;
+  el.innerHTML = `品番 <strong>${esc(state.code)}</strong> で絞り込み中
+    <button id="clearCode" class="ghost">× 解除</button>`;
+}
+function setCodeFilter(code) {
+  state.code = code || '';
+  renderActiveCode();
+  loadFiles();
 }
 
 function renderFiles(files) {
@@ -136,7 +172,7 @@ function renderFiles(files) {
         <td>
           <div class="file-title">${esc(f.title)}</div>
           ${f.product_name ? `<div class="file-desc">品名: ${esc(f.product_name)}</div>` : ''}
-          ${f.product_no ? `<div class="file-desc">品番: ${esc(f.product_no)}</div>` : ''}
+          ${codeChips(f)}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
         </td>
@@ -218,6 +254,16 @@ function bindEvents() {
     clearTimeout(timer);
     state.q = e.target.value;
     timer = setTimeout(loadFiles, 250);
+  });
+
+  // Click a product-code chip -> filter the list by that exact 品番
+  $('#fileRows').addEventListener('click', (e) => {
+    const chip = e.target.closest('.code-chip');
+    if (chip) setCodeFilter(chip.dataset.code);
+  });
+  // Clear the active 品番 filter
+  $('#activeCode').addEventListener('click', (e) => {
+    if (e.target.closest('#clearCode')) setCodeFilter('');
   });
 
   // Delete file (delegated)

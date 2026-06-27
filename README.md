@@ -11,6 +11,7 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 - **Document-number auto-fill** — the document number encodes `<type>-<department>-<serial>` (e.g. `SOP-QC-0021`), so typing it auto-selects the matching Type and Department.
 - **Experimental PDF header extraction** — on upload, page 1 of a PDF is parsed (`pdftotext`) to pre-fill the document number, title, revision, date, 品名, model and product number, and to auto-select the customer from the Model line (`TOTO : …`). The result is editable and reviewed before saving; if `pdftotext` is unavailable it degrades to manual entry.
 - **Filter by all three axes at once** (Type × Department × Customer, including a "None" filter for files with no customer), plus **search** (partial match on title, description, document number, product name/number and original file name)
+- **Filter by product code (品番)** — each 品番 shows as a clickable chip in the list; click one to see every document maintained for that exact product (with a live count), combinable with the other filters. Backed by `/api/files?code=`.
 - **Barcode / product-number lookup (inspection station)** — scan a product number (品番) with a keyboard-type barcode reader (or type it) and the matching inspection spec opens immediately; if several documents match, a short pick-list is shown. Each file's 品番 / doc number are indexed as individual codes, so lookup is an **exact** match first (scanning `DD360` never hits `DD3600`), falling back to a substring search only when there is no exact hit.
 - **File list, download and delete**
 
@@ -92,7 +93,7 @@ node seed.js <username> <password> "Display Name"
 | GET | `/api/customers` | Customer list (with file counts) |
 | POST | `/api/customers` | Add customer (`{name}`) |
 | DELETE | `/api/customers/:id` | Delete customer (its files become unassigned) |
-| GET | `/api/files?q=&type=&department=&customer=` | List / search files (filter by any combination of axes; `customer=none` = no customer) |
+| GET | `/api/files?q=&type=&department=&customer=&code=` | List / search files (any combination of axes; `customer=none` = no customer; `code=` = exact 品番 match). Each row includes a `codes` field with the file's indexed product codes. |
 | POST | `/api/extract` | Parse an uploaded PDF's header and return `doc_no` / `title` / `revision` / `doc_date` / `model` / `product_name` / `product_no` / `customer_name` (+ `type_code` / `dept_code`). The file is parsed and discarded, not stored. |
 | POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`** (required), and optional `customer_id`, `doc_no`, `revision`, `doc_date`, `product_name`, `model`, `product_no`) |
 | GET | `/api/lookup?code=` | Barcode lookup: exact match on the indexed 品番 / doc-number codes first, then a substring fallback across 品番 / doc number / product name / file name |
