@@ -236,6 +236,67 @@ function closeView() {
   $('#viewDialog').close();
 }
 
+// Resolve a lookup item id by its name (case-insensitive); null if no match
+function matchId(key, name) {
+  if (!name) return null;
+  const hit = state[key].items.find(
+    (c) => c.name.toLowerCase() === String(name).trim().toLowerCase()
+  );
+  return hit ? hit.id : null;
+}
+
+// --- Bulk upload (auto-extract + auto-classify each file) -------------------
+async function processBulk(fileList) {
+  const list = $('#bulkResults');
+  for (const file of [...fileList]) {
+    const li = document.createElement('li');
+    li.className = 'scan-hit';
+    li.textContent = `${file.name} … reading`;
+    list.appendChild(li);
+    await bulkOne(file, li);
+  }
+  await loadFiles();
+  await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
+}
+
+async function bulkOne(file, li) {
+  let meta;
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    meta = await api('/api/extract', { method: 'POST', body: fd });
+  } catch (e) {
+    li.className = 'scan-hit bulk-warn';
+    li.textContent = `${file.name} — could not read (${e.message})`;
+    return;
+  }
+  const typeId = matchId('type', meta.type_code);
+  const deptId = matchId('department', meta.dept_code);
+  if (!typeId || !deptId) {
+    li.className = 'scan-hit bulk-warn';
+    li.textContent = `${file.name} — skipped: Type/Department not detected (use single Upload)`;
+    return;
+  }
+  const up = new FormData();
+  up.append('file', file);
+  up.append('title', meta.title || '');
+  up.append('doc_type_id', typeId);
+  up.append('department_id', deptId);
+  const custId = matchId('customer', meta.customer_name);
+  if (custId) up.append('customer_id', custId);
+  for (const k of ['doc_no', 'revision', 'doc_date', 'product_name', 'model', 'product_no']) {
+    up.append(k, meta[k] || '');
+  }
+  try {
+    await api('/api/files', { method: 'POST', body: up });
+    li.className = 'scan-hit bulk-ok';
+    li.textContent = `${file.name} ✓ ${meta.doc_no || meta.title || 'uploaded'}`;
+  } catch (e) {
+    li.className = 'scan-hit bulk-warn';
+    li.textContent = `${file.name} — ${e.message}`;
+  }
+}
+
 // --- QR label --------------------------------------------------------------
 let qrCurrent = { code: '', label: '' };
 function openQr(code, label) {
@@ -739,6 +800,33 @@ function bindEvents() {
       input.value = '';
       await afterSettingsChange(axis);
     });
+  });
+
+  // --- Bulk upload --------------------------------------------------------
+  const bulkDialog = $('#bulkDialog');
+  $('#bulkOpen').addEventListener('click', () => {
+    $('#bulkResults').innerHTML = '';
+    bulkDialog.showModal();
+  });
+  $('#bulkClose').addEventListener('click', () => bulkDialog.close());
+  $('#bulkInput').addEventListener('change', (e) => {
+    if (e.target.files.length) processBulk(e.target.files);
+    e.target.value = '';
+  });
+  const drop = $('#bulkDrop');
+  ['dragover', 'dragenter'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => {
+      e.preventDefault();
+      drop.classList.add('drag');
+    })
+  );
+  ['dragleave', 'dragend'].forEach((ev) =>
+    drop.addEventListener(ev, () => drop.classList.remove('drag'))
+  );
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    drop.classList.remove('drag');
+    if (e.dataTransfer.files.length) processBulk(e.dataTransfer.files);
   });
 
   // Upload modal

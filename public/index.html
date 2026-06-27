@@ -83,6 +83,7 @@
         <section class="searchbar">
           <input type="search" id="search" placeholder="🔍 Search by product no, document no, title, product name or document content" />
           <button id="scanOpen" class="ghost">📷 Barcode</button>
+          <button id="bulkOpen" class="ghost">⧉ Bulk</button>
           <button id="uploadOpen" class="primary">+ Upload</button>
         </section>
 
@@ -155,6 +156,21 @@
         <ul id="scanResults" class="scan-results"></ul>
         <div class="dialog-actions">
           <button type="button" id="scanClose" class="ghost">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Bulk upload (drag & drop, auto-extract each) -->
+    <dialog id="bulkDialog">
+      <form method="dialog">
+        <h2>Bulk upload</h2>
+        <p class="hint">Drop PDFs here, or browse. Type, Department and Customer are auto-detected from each document number / header. Files where Type or Department can't be detected are skipped — use the single Upload form for those.</p>
+        <div id="bulkDrop" class="bulk-drop">
+          Drop files here, or <label class="link-title">browse<input type="file" id="bulkInput" multiple accept=".pdf,.xls,.xlsx,.doc,.docx" hidden /></label>
+        </div>
+        <ul id="bulkResults" class="scan-results"></ul>
+        <div class="dialog-actions">
+          <button type="button" id="bulkClose" class="ghost">Close</button>
         </div>
       </form>
     </dialog>

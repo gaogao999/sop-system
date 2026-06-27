@@ -347,6 +347,20 @@ dialog input, dialog select, dialog textarea {
 }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
+/* ---- Bulk upload ---- */
+.bulk-drop {
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  padding: 28px;
+  text-align: center;
+  color: var(--muted);
+  background: #f8fafc;
+}
+.bulk-drop.drag { border-color: var(--primary); background: #eef2ff; color: var(--primary-dark); }
+.bulk-drop .link-title { color: var(--primary); cursor: pointer; }
+#bulkResults .bulk-ok { border-color: #a7f3d0; background: #ecfdf5; }
+#bulkResults .bulk-warn { border-color: #fde68a; background: #fffbeb; }
+
 /* ---- QR label ---- */
 dialog.qr { width: min(360px, 92vw); padding: 18px 20px; text-align: center; }
 .qr-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
