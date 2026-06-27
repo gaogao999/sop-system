@@ -2,8 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>SOP File Management System</title>
+    <link rel="icon" href="/assets/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/assets/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" />
+    <link rel="manifest" href="/assets/manifest.webmanifest" />
+    <meta name="theme-color" content="#2563eb" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="SOP" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <link rel="stylesheet" href="/assets/style.css" />
   </head>
   <body>
@@ -74,6 +83,7 @@
               <input type="checkbox" id="showOld" /> Show old revisions
             </label>
           </div>
+          <div class="table-wrap">
           <table class="file-table">
             <thead>
               <tr>
@@ -103,6 +113,7 @@
             </thead>
             <tbody id="fileRows"></tbody>
           </table>
+          </div>
         </section>
       </main>
     </div>

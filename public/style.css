@@ -92,7 +92,22 @@ button, .btn-link {
   align-items: start;
 }
 @media (max-width: 720px) {
-  .layout { grid-template-columns: 1fr; }
+  .layout { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+}
+
+/* Let the wide table scroll horizontally instead of breaking the layout */
+.table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.file-table { min-width: 720px; }
+
+/* ---- Mobile tweaks ---- */
+@media (max-width: 720px) {
+  .topbar { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+  .topbar h1 { font-size: 16px; }
+  .searchbar { flex-wrap: wrap; }
+  .searchbar input { flex: 1 1 100%; }
+  .list-head { flex-wrap: wrap; gap: 6px; }
+  dialog { width: 96vw; padding: 18px; }
+  .field-row { flex-direction: column; gap: 14px; }
 }
 
 /* ---- Sidebar ---- */
