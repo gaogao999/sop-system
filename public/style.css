@@ -371,6 +371,10 @@ dialog.settings { width: min(900px, 94vw); padding: 20px 24px; }
 .settings-add { display: flex; gap: 6px; }
 .settings-add input { flex: 1; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
 .settings-add button { border: 1px solid var(--line); background: #f8fafc; border-radius: 8px; padding: 0 12px; }
+.settings-logs { margin-top: 18px; }
+.settings-logs h3 { margin: 0 0 8px; font-size: 14px; }
+.settings-logs .file-table { min-width: 0; }
+.settings-logs .table-wrap { max-height: 30vh; overflow: auto; }
 /* Two side-by-side selects (type + department) in the upload form */
 .field-row { display: flex; gap: 14px; }
 .field-row label { flex: 1; }

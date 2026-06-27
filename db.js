@@ -90,6 +90,19 @@ db.exec(`
     code    TEXT NOT NULL
   );
 
+  -- Access log: who viewed / downloaded which document, and when. Denormalised
+  -- (keeps doc_no / title / user) so entries stay readable after a file is deleted.
+  CREATE TABLE IF NOT EXISTS access_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id  INTEGER,
+    doc_no   TEXT NOT NULL DEFAULT '',
+    title    TEXT NOT NULL DEFAULT '',
+    username TEXT NOT NULL DEFAULT '',
+    action   TEXT NOT NULL,
+    at       TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_log_at         ON access_log(at);
   CREATE INDEX IF NOT EXISTS idx_sop_doc_type   ON sop_files(doc_type_id);
   CREATE INDEX IF NOT EXISTS idx_sop_department ON sop_files(department_id);
   CREATE INDEX IF NOT EXISTS idx_sop_customer   ON sop_files(customer_id);

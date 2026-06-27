@@ -205,6 +205,18 @@ const filesNeedingCodes = db
   .all();
 for (const f of filesNeedingCodes) setProductCodes(f.id, f.product_no, f.doc_no);
 
+// --- Access log ------------------------------------------------------------
+const insertLog = db.prepare(
+  'INSERT INTO access_log (file_id, doc_no, title, username, action, at) VALUES (?, ?, ?, ?, ?, ?)'
+);
+function logAccess(row, username, action) {
+  try {
+    insertLog.run(row.id, row.doc_no || '', row.title || '', username || '', action, new Date().toISOString());
+  } catch {
+    /* logging must never break the request */
+  }
+}
+
 // --- Auth middleware -------------------------------------------------------
 const requireAuth = (req, res, next) => {
   if (req.session && req.session.user) return next();
@@ -518,12 +530,22 @@ app.get('/api/files/:id/download', requireAuth, (req, res) => {
   if (!existsSync(path)) return res.status(410).json({ error: 'The stored file no longer exists' });
 
   const disposition = req.query.inline ? 'inline' : 'attachment';
+  logAccess(row, req.session.user.username, req.query.inline ? 'view' : 'download');
   res.setHeader('Content-Type', row.mimetype || 'application/octet-stream');
   res.setHeader(
     'Content-Disposition',
     `${disposition}; filename*=UTF-8''${encodeURIComponent(row.original_name)}`
   );
   createReadStream(path).pipe(res);
+});
+
+// Recent access log (views / downloads)
+app.get('/api/logs', requireAuth, (req, res) => {
+  res.json(
+    db
+      .prepare('SELECT id, doc_no, title, username, action, at FROM access_log ORDER BY at DESC LIMIT 200')
+      .all()
+  );
 });
 
 // Barcode / product-number lookup — find documents whose product number (品番),

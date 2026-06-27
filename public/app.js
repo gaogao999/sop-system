@@ -51,6 +51,12 @@ const fmtDay = (iso) => {
   const p = (x) => String(x).padStart(2, '0');
   return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`;
 };
+// Date + time (used in the access log)
+const fmtDateTime = (iso) => {
+  const d = new Date(iso);
+  const p = (x) => String(x).padStart(2, '0');
+  return `${fmtDay(iso)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
 // Icon by document type, colour-coded: SOP=red, QP=blue, Format=green
 const TYPE_ICON = { SOP: '📕', QP: '📘', Format: '📗' };
 const iconFor = (f) => TYPE_ICON[f.doc_type_name] || '📄';
@@ -303,6 +309,28 @@ function renderSettings() {
           .join('')
       : '<li class="muted">None yet</li>';
   });
+}
+
+// Recent access log (shown in Settings)
+async function renderLogs() {
+  const tbody = $('#logRows');
+  try {
+    const logs = await api('/api/logs');
+    tbody.innerHTML = logs.length
+      ? logs
+          .map(
+            (l) => `<tr>
+              <td>${fmtDateTime(l.at)}</td>
+              <td>${esc(l.username || '-')}</td>
+              <td>${esc(l.action)}</td>
+              <td>${esc(l.doc_no || '')} ${esc(l.title || '')}</td>
+            </tr>`
+          )
+          .join('')
+      : '<tr><td colspan="4" class="empty">No access yet</td></tr>';
+  } catch {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty">Could not load the log</td></tr>';
+  }
 }
 
 // After an add/rename/delete: refresh that axis everywhere
@@ -616,6 +644,7 @@ function bindEvents() {
   const settingsDialog = $('#settingsDialog');
   $('#settingsOpen').addEventListener('click', () => {
     renderSettings();
+    renderLogs();
     settingsDialog.showModal();
   });
   $('#settingsClose').addEventListener('click', () => settingsDialog.close());
