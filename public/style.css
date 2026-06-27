@@ -358,6 +358,17 @@ dialog input, dialog select, dialog textarea {
   font-size: 18px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+.scan-row { display: flex; gap: 8px; align-items: stretch; }
+.scan-row #scanInput { flex: 1; }
+.scan-row #scanCamera { white-space: nowrap; flex: none; }
+.scan-video {
+  width: 100%;
+  max-height: 50vh;
+  margin-top: 10px;
+  border-radius: 10px;
+  background: #000;
+  object-fit: cover;
+}
 .scan-results { list-style: none; margin: 12px 0 0; padding: 0; max-height: 40vh; overflow: auto; }
 .scan-hit {
   display: flex;

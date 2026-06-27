@@ -445,42 +445,29 @@ function bindEvents() {
   // --- Barcode / product-number lookup (inspection station) ---------------
   const scanDialog = $('#scanDialog');
   const openInline = (id) => window.open(`/api/files/${id}/download?inline=1`, '_blank');
-  $('#scanOpen').addEventListener('click', () => {
-    $('#scanInput').value = '';
-    $('#scanResults').innerHTML = '';
-    $('#scanStatus').hidden = true;
-    scanDialog.showModal();
-    $('#scanInput').focus();
-  });
-  $('#scanClose').addEventListener('click', () => scanDialog.close());
+  const setScanStatus = (text, cls) => {
+    const s = $('#scanStatus');
+    s.hidden = false;
+    s.className = 'extract-status' + (cls ? ' ' + cls : '');
+    s.textContent = text;
+  };
 
-  $('#scanResults').addEventListener('click', (e) => {
-    const li = e.target.closest('.scan-hit');
-    if (li) openInline(li.dataset.id);
-  });
-
-  $('#scanForm').addEventListener('submit', async (e) => {
-    e.preventDefault(); // keep the dialog open for the next scan
-    const code = $('#scanInput').value.trim();
-    const status = $('#scanStatus');
+  // Look up a scanned/typed code and open the matching spec
+  async function doLookup(code) {
+    code = (code || '').trim();
     const results = $('#scanResults');
     results.innerHTML = '';
     if (!code) return;
-    status.hidden = false;
-    status.className = 'extract-status';
-    status.textContent = `Searching "${code}"…`;
+    setScanStatus(`Searching "${code}"…`, '');
     try {
       const files = await api(`/api/lookup?code=${encodeURIComponent(code)}`);
       if (files.length === 0) {
-        status.textContent = `❌ Not found: ${code}`;
-        status.classList.add('warn');
+        setScanStatus(`❌ Not found: ${code}`, 'warn');
       } else if (files.length === 1) {
-        status.textContent = `✓ Opened ${esc(files[0].doc_no || files[0].title)}`;
-        status.classList.add('ok');
+        setScanStatus(`✓ Opened ${files[0].doc_no || files[0].title}`, 'ok');
         openInline(files[0].id);
       } else {
-        status.textContent = `${files.length} matches — choose a document to open:`;
-        status.classList.add('ok');
+        setScanStatus(`${files.length} matches — choose a document to open:`, 'ok');
         results.innerHTML = files
           .map(
             (f) => `<li class="scan-hit" data-id="${f.id}">
@@ -493,10 +480,81 @@ function bindEvents() {
           .join('');
       }
     } catch (err) {
-      status.textContent = `Error: ${err.message}`;
-      status.classList.add('warn');
+      setScanStatus(`Error: ${err.message}`, 'warn');
     }
-    // Ready for the next scan
+  }
+
+  // Camera scanning via ZXing (QR / Data Matrix / 2D / 1D barcodes)
+  let codeReader = null;
+  async function startCamera() {
+    if (!window.ZXing) {
+      setScanStatus('Camera scanner could not load.', 'warn');
+      return;
+    }
+    const video = $('#scanVideo');
+    try {
+      codeReader = new ZXing.BrowserMultiFormatReader();
+      video.hidden = false;
+      $('#scanCamera').textContent = '■ Stop';
+      setScanStatus('Point the camera at a code…', '');
+      const onResult = (result) => {
+        if (!result) return;
+        const code = result.getText();
+        $('#scanInput').value = code;
+        stopCamera();
+        doLookup(code);
+      };
+      // Prefer the rear camera on phones/tablets; fall back to the default
+      try {
+        await codeReader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' } } },
+          video,
+          onResult
+        );
+      } catch {
+        await codeReader.decodeFromVideoDevice(null, video, onResult);
+      }
+    } catch (err) {
+      setScanStatus(`Camera error: ${err.message || err}. HTTPS and camera permission are required.`, 'warn');
+      stopCamera();
+    }
+  }
+  function stopCamera() {
+    if (codeReader) {
+      try {
+        codeReader.reset();
+      } catch {
+        /* ignore */
+      }
+      codeReader = null;
+    }
+    $('#scanVideo').hidden = true;
+    $('#scanCamera').textContent = '📷 Camera';
+  }
+
+  $('#scanOpen').addEventListener('click', () => {
+    $('#scanInput').value = '';
+    $('#scanResults').innerHTML = '';
+    $('#scanStatus').hidden = true;
+    scanDialog.showModal();
+    $('#scanInput').focus();
+  });
+  $('#scanClose').addEventListener('click', () => scanDialog.close());
+  scanDialog.addEventListener('close', stopCamera); // stop camera however it closes
+  $('#scanCamera').addEventListener('click', () => {
+    if (codeReader) stopCamera();
+    else startCamera();
+  });
+
+  $('#scanResults').addEventListener('click', (e) => {
+    const li = e.target.closest('.scan-hit');
+    if (li) openInline(li.dataset.id);
+  });
+
+  $('#scanForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); // keep the dialog open for the next scan
+    const code = $('#scanInput').value.trim();
+    await doLookup(code);
     $('#scanInput').value = '';
     $('#scanInput').focus();
   });

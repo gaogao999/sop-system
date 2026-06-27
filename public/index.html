@@ -136,14 +136,18 @@
     <dialog id="scanDialog">
       <form id="scanForm" method="dialog">
         <h2>🔎 Find inspection spec (barcode / product no)</h2>
-        <p class="hint">Scan with a barcode reader, or type a product number and press Enter</p>
-        <input
-          type="text"
-          id="scanInput"
-          placeholder="Scan / type a product number…"
-          autocomplete="off"
-          inputmode="text"
-        />
+        <p class="hint">Scan with a barcode reader, type a product number and press Enter, or use the camera (QR / Data Matrix / 1D barcodes).</p>
+        <div class="scan-row">
+          <input
+            type="text"
+            id="scanInput"
+            placeholder="Scan / type a product number…"
+            autocomplete="off"
+            inputmode="text"
+          />
+          <button type="button" id="scanCamera" class="ghost">📷 Camera</button>
+        </div>
+        <video id="scanVideo" class="scan-video" playsinline hidden></video>
         <p id="scanStatus" class="extract-status" hidden></p>
         <ul id="scanResults" class="scan-results"></ul>
         <div class="dialog-actions">
@@ -219,6 +223,7 @@
       </form>
     </dialog>
 
+    <script src="/assets/zxing.min.js"></script>
     <script src="/assets/app.js"></script>
   </body>
 </html>
