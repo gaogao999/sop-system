@@ -229,7 +229,9 @@ tr.superseded .file-title { font-weight: 500; }
 .file-table th { background: #f8fafc; color: var(--muted); font-weight: 600; font-size: 12px; }
 .file-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
 .file-table th.sortable:hover { color: var(--text); }
-.file-table th .arrow { color: var(--primary); font-size: 10px; margin-left: 2px; }
+.file-table th .arrow { font-size: 10px; margin-left: 2px; }
+.file-table th .arrow.asc { color: #2563eb; }   /* ascending = blue */
+.file-table th .arrow.desc { color: #dc2626; }  /* descending = red */
 .file-table tr:last-child td { border-bottom: none; }
 .file-table .icon { font-size: 20px; }
 .file-title { font-weight: 600; }

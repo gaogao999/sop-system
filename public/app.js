@@ -44,10 +44,11 @@ const fmtSize = (n) => {
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 };
-const fmtDate = (iso) => {
+// Date only (time is kept in the data but not shown in the list)
+const fmtDay = (iso) => {
   const d = new Date(iso);
   const p = (x) => String(x).padStart(2, '0');
-  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())}`;
 };
 // Icon by document type, colour-coded: SOP=red, QP=blue, Format=green
 const TYPE_ICON = { SOP: '📕', QP: '📘', Format: '📗' };
@@ -268,7 +269,9 @@ function renderSortArrows() {
   document.querySelectorAll('th.sortable').forEach((th) => {
     const arrow = th.querySelector('.arrow');
     if (!arrow) return;
-    arrow.textContent = th.dataset.sort === state.sort.key ? (state.sort.dir === 'asc' ? '▲' : '▼') : '';
+    const active = th.dataset.sort === state.sort.key;
+    arrow.textContent = active ? (state.sort.dir === 'asc' ? '▲' : '▼') : '';
+    arrow.className = 'arrow' + (active ? ' ' + state.sort.dir : '');
   });
 }
 
@@ -308,10 +311,10 @@ function renderFiles(files) {
         <td>${f.department_name ? esc(f.department_name) : '-'}</td>
         <td>${f.customer_name ? esc(f.customer_name) : '<span class="muted">-</span>'}</td>
         <td>${fmtSize(f.size)}</td>
-        <td>${fmtDate(f.uploaded_at)}</td>
+        <td>${fmtDay(f.uploaded_at)}</td>
         <td>${esc(f.uploaded_by_name || '-')}</td>
         <td class="actions">
-          <a class="btn-link" href="/api/files/${f.id}/download">⬇ Download</a>
+          <a class="btn-link" href="/api/files/${f.id}/download">Download</a>
           <button class="btn-link danger del-file" data-id="${f.id}">Delete</button>
         </td>
       </tr>`

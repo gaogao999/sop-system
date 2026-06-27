@@ -141,8 +141,16 @@ function extractHeader(filePath, originalName, mimetype) {
       out.product_name = out.model;
     }
   }
-  const productNo = text.match(/Product\s*No\.?\s*:?\s*(.+)/);
-  if (productNo) out.product_no = firstCol(productNo[1]);
+  // Product No. can span several lines before the next label (Drawing /
+  // Description). Capture the whole block and keep each line's first column
+  // (drops the right-hand columns like the date), so all codes are included.
+  const pnBlock = text.match(/Product\s*No\.?\s*:?\s*([\s\S]*?)(?:\n\s*(?:Drawing|Description|Conditions)\b|\n\s*\d+\s*\.)/i);
+  if (pnBlock) {
+    out.product_no = pnBlock[1].split('\n').map(firstCol).filter(Boolean).join(' ').trim();
+  } else {
+    const productNo = text.match(/Product\s*No\.?\s*:?\s*(.+)/);
+    if (productNo) out.product_no = firstCol(productNo[1]);
+  }
 
   return out;
 }
