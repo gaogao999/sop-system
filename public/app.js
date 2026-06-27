@@ -284,7 +284,6 @@ function renderFiles(files) {
         </td>
         <td>
           <button class="file-title link-title view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">${esc(f.title)}</button>
-          ${f.revision ? `<div class="file-rev">Rev. ${esc(f.revision)}${f.doc_date ? ` · ${esc(f.doc_date)}` : ''}</div>` : ''}
           ${f.product_name ? `<div class="file-desc">Product name: ${esc(f.product_name)}</div>` : ''}
           ${codeChips(f)}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
@@ -592,6 +591,11 @@ async function init() {
     return; // api() already redirected on 401
   }
   bindEvents();
+  api('/api/version')
+    .then(({ version }) => {
+      $('#appVer').textContent = `v${version}`;
+    })
+    .catch(() => {});
   await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
   await loadFiles();
 }

@@ -80,6 +80,8 @@ button, .btn-link {
   border-bottom: 1px solid var(--line);
 }
 .topbar h1 { font-size: 18px; margin: 0; }
+.brand { display: flex; flex-direction: column; }
+.app-ver { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .user-box { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 14px; }
 .inline { display: inline; margin: 0; }
 
@@ -273,7 +275,6 @@ dialog.viewer[open] {
 .viewer-loading { margin: 0; padding: 10px 16px; font-size: 13px; color: var(--muted); background: #f8fafc; border-bottom: 1px solid var(--line); }
 .viewer-notice { padding: 32px; text-align: center; color: var(--muted); }
 .file-desc { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.file-rev { font-size: 12px; font-weight: 600; color: var(--primary-dark); margin-top: 2px; }
 .code-chips { font-size: 12px; color: var(--muted); margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .code-chip {
   border: 1px solid var(--line);

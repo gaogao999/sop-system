@@ -5,13 +5,15 @@ import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
-import { mkdirSync, existsSync, unlinkSync, createReadStream } from 'node:fs';
+import { mkdirSync, existsSync, unlinkSync, createReadStream, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import db from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
+// App version (shown in the header so deploys are visible) — from package.json
+const APP_VERSION = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8')).version;
 const UPLOAD_DIR = process.env.UPLOAD_DIR || join(__dirname, 'uploads');
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -534,6 +536,7 @@ app.delete('/api/files/:id', requireAuth, (req, res) => {
 
 // Health check
 app.get('/healthz', (req, res) => res.json({ ok: true }));
+app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
 
 app.listen(PORT, () => {
   console.log(`SOP File Management System: http://localhost:${PORT}`);
