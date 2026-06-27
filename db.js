@@ -90,12 +90,15 @@ if (typeCount === 0) {
   ['QP', 'SOP', 'Format'].forEach((n) => insert.run(n));
 }
 
-// Initial departments (placeholders — rename/replace with your real
-// departments in the UI; they are fully editable)
+// Initial departments (read from the customer's existing folder structure;
+// editable in the UI afterwards)
 const deptCount = db.prepare('SELECT COUNT(*) AS c FROM departments').get().c;
 if (deptCount === 0) {
   const insert = db.prepare('INSERT INTO departments (name) VALUES (?)');
-  ['Manufacturing', 'Quality Control', 'Health & Safety', 'General'].forEach((n) => insert.run(n));
+  [
+    'CD', 'CS', 'DC', 'EC', 'GA', 'HR', 'IT', 'MC', 'MI', 'MR',
+    'PC', 'PE', 'PQA', 'PU', 'QC', 'SCM', 'SL', 'SM', 'WH',
+  ].forEach((n) => insert.run(n));
 }
 
 export default db;
