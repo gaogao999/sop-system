@@ -15,6 +15,7 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 - **Per-column filters** — a filter row under the table header: text boxes for Doc No./Rev, Title (品名 included) and uploader, and dropdowns for Type / Department / Customer that stay in sync with the sidebar. All filters combine (AND).
 - **Revision control** — documents sharing a document number are revisions of the same document; the highest revision number is the **current** one. The list and the barcode lookup show/open only the current revision (so a scan always opens the latest), the current row shows a "最新 (全N版)" badge, and a **旧版も表示** toggle reveals superseded revisions (marked 旧版, retained for traceability — never deleted).
 - **Barcode / product-number lookup (inspection station)** — scan a product number (品番) with a keyboard-type barcode reader (or type it) and the matching inspection spec opens immediately; if several documents match, a short pick-list is shown. Each file's 品番 / doc number are indexed as individual codes, so lookup is an **exact** match first (scanning `DD360` never hits `DD3600`), falling back to a substring search only when there is no exact hit.
+- **In-app preview** — click a document's title or **View** to open it on screen without downloading. PDFs render inline in a modal; Office files (Excel/Word) can't be rendered by the browser, so a notice with a Download button is shown.
 - **File list, download and delete**
 
 ## Stack

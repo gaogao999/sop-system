@@ -61,6 +61,9 @@ const esc = (s) =>
   (s ?? '').toString().replace(/[&<>"']/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
   );
+// Browsers can render PDFs inline; Office files (xls/doc) can't be previewed
+const isPdf = (f) =>
+  f.mimetype === 'application/pdf' || /\.pdf$/i.test(f.original_name || '');
 
 async function api(path, opts) {
   const res = await fetch(path, { headers: { Accept: 'application/json' }, ...opts });
@@ -148,6 +151,28 @@ function codeChips(f) {
   return `<div class="code-chips">Product No.: ${chips}</div>`;
 }
 
+// Open a document in the in-app preview (no download needed)
+function openView(id, name, pdf) {
+  const url = `/api/files/${id}/download?inline=1`;
+  $('#viewTitle').textContent = name || 'Document';
+  $('#viewDownload').href = `/api/files/${id}/download`;
+  const frame = $('#viewFrame');
+  const notice = $('#viewNotice');
+  if (pdf) {
+    notice.hidden = true;
+    frame.hidden = false;
+    frame.src = url;
+  } else {
+    // Office files can't be rendered inline by the browser
+    frame.hidden = true;
+    frame.src = 'about:blank';
+    notice.hidden = false;
+    notice.textContent =
+      'This file type cannot be previewed in the browser. Use Download to open it.';
+  }
+  $('#viewDialog').showModal();
+}
+
 // --- File list -------------------------------------------------------------
 async function loadFiles() {
   const params = new URLSearchParams();
@@ -204,7 +229,7 @@ function renderFiles(files) {
           }
         </td>
         <td>
-          <div class="file-title">${esc(f.title)}</div>
+          <button class="file-title link-title view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">${esc(f.title)}</button>
           ${f.product_name ? `<div class="file-desc">Product name: ${esc(f.product_name)}</div>` : ''}
           ${codeChips(f)}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
@@ -217,6 +242,7 @@ function renderFiles(files) {
         <td>${fmtDate(f.uploaded_at)}</td>
         <td>${esc(f.uploaded_by_name || '-')}</td>
         <td class="actions">
+          <button class="btn-link view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">👁 View</button>
           <a class="btn-link" href="/api/files/${f.id}/download">⬇ Download</a>
           <button class="btn-link danger del-file" data-id="${f.id}">Delete</button>
         </td>
@@ -316,7 +342,18 @@ function bindEvents() {
   // Click a product-code chip -> filter the list by that exact code
   $('#fileRows').addEventListener('click', (e) => {
     const chip = e.target.closest('.code-chip');
-    if (chip) setCodeFilter(chip.dataset.code);
+    if (chip) {
+      setCodeFilter(chip.dataset.code);
+      return;
+    }
+    const view = e.target.closest('.view-file');
+    if (view) openView(view.dataset.id, view.dataset.name, view.dataset.pdf === '1');
+  });
+
+  // In-app preview
+  $('#viewClose').addEventListener('click', () => {
+    $('#viewFrame').src = 'about:blank';
+    $('#viewDialog').close();
   });
   // Clear the active product-code filter
   $('#activeCode').addEventListener('click', (e) => {

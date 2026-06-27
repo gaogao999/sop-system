@@ -118,6 +118,19 @@
       </main>
     </div>
 
+    <!-- In-app document preview (view without downloading) -->
+    <dialog id="viewDialog" class="viewer">
+      <div class="viewer-head">
+        <span id="viewTitle" class="viewer-title"></span>
+        <span class="viewer-actions">
+          <a id="viewDownload" class="btn-link" href="#">⬇ Download</a>
+          <button type="button" id="viewClose" class="ghost">Close</button>
+        </span>
+      </div>
+      <iframe id="viewFrame" class="viewer-frame" title="Document preview"></iframe>
+      <p id="viewNotice" class="viewer-notice" hidden></p>
+    </dialog>
+
     <!-- Barcode / product-number lookup modal (for the inspection station) -->
     <dialog id="scanDialog">
       <form id="scanForm" method="dialog">
