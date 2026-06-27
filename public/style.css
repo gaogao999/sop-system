@@ -252,6 +252,10 @@ dialog.viewer {
   max-width: 1100px;
   height: 92vh;
   padding: 0;
+}
+/* Only lay out as a flex column when actually open, otherwise the browser's
+   default "hidden when not open" must win (else it shows permanently). */
+dialog.viewer[open] {
   display: flex;
   flex-direction: column;
 }
