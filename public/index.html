@@ -56,7 +56,12 @@
         <!-- File list -->
         <section>
           <div id="activeCode" class="active-code" hidden></div>
-          <p id="listInfo" class="list-info"></p>
+          <div class="list-head">
+            <p id="listInfo" class="list-info"></p>
+            <label class="show-old">
+              <input type="checkbox" id="showOld" /> 旧版も表示
+            </label>
+          </div>
           <table class="file-table">
             <thead>
               <tr>

@@ -164,7 +164,14 @@ button, .btn-link {
   border-radius: 10px;
   font-size: 15px;
 }
-.list-info { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.list-info { color: var(--muted); font-size: 13px; margin: 0; }
+.list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.show-old { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 5px; cursor: pointer; }
+.rev-badge { display: inline-block; font-size: 11px; border-radius: 6px; padding: 1px 7px; margin-top: 3px; }
+.rev-badge.current { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.rev-badge.old { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+tr.superseded { background: #fafafa; color: var(--muted); }
+tr.superseded .file-title { font-weight: 500; }
 
 .file-table {
   width: 100%;

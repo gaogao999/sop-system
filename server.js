@@ -315,6 +315,17 @@ app.get('/', requireAuth, (req, res) => {
 });
 
 // --- File API --------------------------------------------------------------
+// Revision control: documents that share a (non-empty) doc_no are revisions of
+// the same document. The "current" one is the highest revision number (ties
+// broken by newest id). This SQL condition is true for the current revision.
+const CURRENT_REV = `
+  NOT EXISTS (
+    SELECT 1 FROM sop_files g
+    WHERE g.doc_no = f.doc_no AND f.doc_no <> ''
+      AND ( CAST(g.revision AS INTEGER) > CAST(f.revision AS INTEGER)
+         OR (CAST(g.revision AS INTEGER) = CAST(f.revision AS INTEGER) AND g.id > f.id) )
+  )`;
+
 const fileSelect = `
   SELECT f.id, f.title, f.description,
          f.doc_type_id, t.name AS doc_type_name,
@@ -322,6 +333,8 @@ const fileSelect = `
          f.customer_id, cu.name AS customer_name,
          f.doc_no, f.revision, f.doc_date, f.model, f.product_name, f.product_no,
          (SELECT GROUP_CONCAT(pc.code, ' ') FROM product_codes pc WHERE pc.file_id = f.id) AS codes,
+         (${CURRENT_REV}) AS is_current,
+         (SELECT COUNT(*) FROM sop_files g2 WHERE g2.doc_no = f.doc_no AND f.doc_no <> '') AS revision_count,
          f.original_name, f.mimetype, f.size, f.uploaded_at,
          u.username AS uploaded_by_name
   FROM sop_files f
@@ -373,6 +386,9 @@ app.get('/api/files', requireAuth, (req, res) => {
   axisFilter(req.query.type, 'doc_type_id');
   axisFilter(req.query.department, 'department_id');
   axisFilter(req.query.customer, 'customer_id');
+
+  // Show only the current revision unless explicitly asked for all revisions
+  if (req.query.revisions !== 'all') where.push(CURRENT_REV);
 
   const sql = `${fileSelect} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY f.uploaded_at DESC`;
   res.json(db.prepare(sql).all(...params));
@@ -476,12 +492,14 @@ app.get('/api/lookup', requireAuth, (req, res) => {
   const code = (req.query.code || '').toString().trim();
   if (!code) return res.json([]);
 
+  // Only ever return the current revision so a scan opens the latest version.
   // Tier 1: exact product-code match (case-insensitive). This is the reliable
   // path — scanning DD360 matches only the code "DD360", never "DD3600".
   const exact = db
     .prepare(
       `${fileSelect}
        WHERE f.id IN (SELECT file_id FROM product_codes WHERE code = ? COLLATE NOCASE)
+         AND ${CURRENT_REV}
        ORDER BY f.uploaded_at DESC`
     )
     .all(code);
@@ -492,7 +510,8 @@ app.get('/api/lookup', requireAuth, (req, res) => {
   const rows = db
     .prepare(
       `${fileSelect}
-       WHERE f.product_no LIKE ? OR f.doc_no LIKE ? OR f.product_name LIKE ? OR f.original_name LIKE ?
+       WHERE (f.product_no LIKE ? OR f.doc_no LIKE ? OR f.product_name LIKE ? OR f.original_name LIKE ?)
+         AND ${CURRENT_REV}
        ORDER BY f.uploaded_at DESC`
     )
     .all(like, like, like, like);

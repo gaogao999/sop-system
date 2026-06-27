@@ -36,6 +36,7 @@ const state = {
   q: '',
   code: '', // exact product-code (品番) filter, '' = none
   cols: { docref: '', title: '', by: '' }, // per-column text filters
+  showOld: false, // include superseded revisions
 };
 
 // --- Utilities -------------------------------------------------------------
@@ -152,6 +153,7 @@ async function loadFiles() {
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
   if (state.code) params.set('code', state.code);
+  if (state.showOld) params.set('revisions', 'all');
   for (const [k, v] of Object.entries(state.cols)) if (v) params.set(k, v);
   for (const key of Object.keys(AXES)) {
     if (state[key].active !== 'all') params.set(AXES[key].queryKey, state[key].active);
@@ -187,12 +189,19 @@ function renderFiles(files) {
   }
   tbody.innerHTML = files
     .map(
-      (f) => `<tr>
+      (f) => `<tr class="${f.is_current ? '' : 'superseded'}">
         <td class="icon">${iconFor(f.original_name)}</td>
         <td>
           <div class="doc-no">${f.doc_no ? esc(f.doc_no) : '<span class="muted">-</span>'}</div>
           ${f.revision ? `<div class="file-orig">Rev.${esc(f.revision)}</div>` : ''}
           ${f.doc_date ? `<div class="file-orig">${esc(f.doc_date)}</div>` : ''}
+          ${
+            f.is_current
+              ? f.revision_count > 1
+                ? `<span class="rev-badge current">最新 (全${f.revision_count}版)</span>`
+                : ''
+              : `<span class="rev-badge old">旧版</span>`
+          }
         </td>
         <td>
           <div class="file-title">${esc(f.title)}</div>
@@ -292,6 +301,12 @@ function bindEvents() {
   bindColInput('#fDocref', 'docref');
   bindColInput('#fTitle', 'title');
   bindColInput('#fBy', 'by');
+
+  // Show / hide superseded (old) revisions
+  $('#showOld').addEventListener('change', (e) => {
+    state.showOld = e.target.checked;
+    loadFiles();
+  });
 
   // Click a product-code chip -> filter the list by that exact 品番
   $('#fileRows').addEventListener('click', (e) => {
