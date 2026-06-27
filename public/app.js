@@ -230,6 +230,65 @@ function bindEvents() {
     await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
   });
 
+  // --- Barcode / product-number lookup (inspection station) ---------------
+  const scanDialog = $('#scanDialog');
+  const openInline = (id) => window.open(`/api/files/${id}/download?inline=1`, '_blank');
+  $('#scanOpen').addEventListener('click', () => {
+    $('#scanInput').value = '';
+    $('#scanResults').innerHTML = '';
+    $('#scanStatus').hidden = true;
+    scanDialog.showModal();
+    $('#scanInput').focus();
+  });
+  $('#scanClose').addEventListener('click', () => scanDialog.close());
+
+  $('#scanResults').addEventListener('click', (e) => {
+    const li = e.target.closest('.scan-hit');
+    if (li) openInline(li.dataset.id);
+  });
+
+  $('#scanForm').addEventListener('submit', async (e) => {
+    e.preventDefault(); // keep the dialog open for the next scan
+    const code = $('#scanInput').value.trim();
+    const status = $('#scanStatus');
+    const results = $('#scanResults');
+    results.innerHTML = '';
+    if (!code) return;
+    status.hidden = false;
+    status.className = 'extract-status';
+    status.textContent = `「${code}」を検索中…`;
+    try {
+      const files = await api(`/api/lookup?code=${encodeURIComponent(code)}`);
+      if (files.length === 0) {
+        status.textContent = `❌ 見つかりません: ${code}`;
+        status.classList.add('warn');
+      } else if (files.length === 1) {
+        status.textContent = `✓ ${esc(files[0].doc_no || files[0].title)} を開きました`;
+        status.classList.add('ok');
+        openInline(files[0].id);
+      } else {
+        status.textContent = `${files.length} 件ヒット — 開く文書を選んでください:`;
+        status.classList.add('ok');
+        results.innerHTML = files
+          .map(
+            (f) => `<li class="scan-hit" data-id="${f.id}">
+              <span class="tag">${esc(f.doc_type_name || '')}</span>
+              <span class="doc-no">${esc(f.doc_no || '-')}</span>
+              <span>${esc(f.title)}</span>
+              ${f.product_no ? `<span class="file-orig">${esc(f.product_no)}</span>` : ''}
+            </li>`
+          )
+          .join('');
+      }
+    } catch (err) {
+      status.textContent = `エラー: ${err.message}`;
+      status.classList.add('warn');
+    }
+    // Ready for the next scan
+    $('#scanInput').value = '';
+    $('#scanInput').focus();
+  });
+
   // Upload modal
   const dialog = $('#uploadDialog');
   $('#uploadOpen').addEventListener('click', () => {

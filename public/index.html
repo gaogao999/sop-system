@@ -49,6 +49,7 @@
         <!-- Search bar -->
         <section class="searchbar">
           <input type="search" id="search" placeholder="🔍 Search by title, description or file name" />
+          <button id="scanOpen" class="ghost">📷 バーコード</button>
           <button id="uploadOpen" class="primary">+ Upload</button>
         </section>
 
@@ -75,6 +76,26 @@
         </section>
       </main>
     </div>
+
+    <!-- Barcode / product-number lookup modal (for the inspection station) -->
+    <dialog id="scanDialog">
+      <form id="scanForm" method="dialog">
+        <h2>🔎 検査仕様書を検索 (バーコード / 品番)</h2>
+        <p class="hint">バーコードリーダーで読み取るか、品番を入力して Enter</p>
+        <input
+          type="text"
+          id="scanInput"
+          placeholder="品番をスキャン / 入力…"
+          autocomplete="off"
+          inputmode="text"
+        />
+        <p id="scanStatus" class="extract-status" hidden></p>
+        <ul id="scanResults" class="scan-results"></ul>
+        <div class="dialog-actions">
+          <button type="button" id="scanClose" class="ghost">閉じる</button>
+        </div>
+      </form>
+    </dialog>
 
     <!-- Upload modal -->
     <dialog id="uploadDialog">
@@ -127,7 +148,7 @@
             <input type="text" id="model" name="model" maxlength="200" />
           </label>
           <label>
-            Product No. <span class="hint">(optional)</span>
+            品番 / Product No. <span class="hint">(barcode lookup key)</span>
             <input type="text" id="productNo" name="product_no" maxlength="500" />
           </label>
         </div>

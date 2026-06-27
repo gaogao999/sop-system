@@ -11,6 +11,7 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 - **Document-number auto-fill** — the document number encodes `<type>-<department>-<serial>` (e.g. `SOP-QC-0021`), so typing it auto-selects the matching Type and Department.
 - **Experimental PDF header extraction** — on upload, page 1 of a PDF is parsed (`pdftotext`) to pre-fill the document number, title, revision, date, 品名, model and product number, and to auto-select the customer from the Model line (`TOTO : …`). The result is editable and reviewed before saving; if `pdftotext` is unavailable it degrades to manual entry.
 - **Filter by all three axes at once** (Type × Department × Customer, including a "None" filter for files with no customer), plus **search** (partial match on title, description, document number, product name/number and original file name)
+- **Barcode / product-number lookup (inspection station)** — scan a product number (品番) with a keyboard-type barcode reader (or type it) and the matching inspection spec opens immediately; if several documents match, a short pick-list is shown. Matches against 品番 (`product_no`), document number, product name and file name.
 - **File list, download and delete**
 
 ## Stack
@@ -94,7 +95,8 @@ node seed.js <username> <password> "Display Name"
 | GET | `/api/files?q=&type=&department=&customer=` | List / search files (filter by any combination of axes; `customer=none` = no customer) |
 | POST | `/api/extract` | Parse an uploaded PDF's header and return `doc_no` / `title` / `revision` / `doc_date` / `model` / `product_name` / `product_no` / `customer_name` (+ `type_code` / `dept_code`). The file is parsed and discarded, not stored. |
 | POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`** (required), and optional `customer_id`, `doc_no`, `revision`, `doc_date`, `product_name`, `model`, `product_no`) |
-| GET | `/api/files/:id/download` | Download |
+| GET | `/api/lookup?code=` | Find documents whose 品番 / doc number / product name / file name contains the scanned code (barcode lookup) |
+| GET | `/api/files/:id/download` | Download (add `?inline=1` to view in the browser instead of downloading) |
 | DELETE | `/api/files/:id` | Delete |
 | GET | `/healthz` | Health check |
 

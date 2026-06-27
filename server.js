@@ -397,19 +397,38 @@ app.post('/api/files', requireAuth, (req, res) => {
   });
 });
 
-// Download
+// Download (or inline view with ?inline=1 — used by the barcode lookup so the
+// inspection spec opens straight in the browser instead of downloading)
 app.get('/api/files/:id/download', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
   if (!row) return res.status(404).json({ error: 'File not found' });
   const path = join(UPLOAD_DIR, row.stored_name);
   if (!existsSync(path)) return res.status(410).json({ error: 'The stored file no longer exists' });
 
+  const disposition = req.query.inline ? 'inline' : 'attachment';
   res.setHeader('Content-Type', row.mimetype || 'application/octet-stream');
   res.setHeader(
     'Content-Disposition',
-    `attachment; filename*=UTF-8''${encodeURIComponent(row.original_name)}`
+    `${disposition}; filename*=UTF-8''${encodeURIComponent(row.original_name)}`
   );
   createReadStream(path).pipe(res);
+});
+
+// Barcode / product-number lookup — find documents whose product number (品番),
+// document number, product name or file name contains the scanned code. Used by
+// the inspection station: scan a code, get the matching inspection spec(s).
+app.get('/api/lookup', requireAuth, (req, res) => {
+  const code = (req.query.code || '').toString().trim();
+  if (!code) return res.json([]);
+  const like = `%${code}%`;
+  const rows = db
+    .prepare(
+      `${fileSelect}
+       WHERE f.product_no LIKE ? OR f.doc_no LIKE ? OR f.product_name LIKE ? OR f.original_name LIKE ?
+       ORDER BY f.uploaded_at DESC`
+    )
+    .all(like, like, like, like);
+  res.json(rows);
 });
 
 // Delete
