@@ -534,6 +534,123 @@ app.post('/api/files', requireAuth, (req, res) => {
   });
 });
 
+// --- CSV import (bulk metadata update) -------------------------------------
+// Parse CSV text into an array of objects keyed by the (lower-cased) header row.
+// Handles quoted fields, escaped quotes ("") and commas/newlines inside quotes.
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  const s = text.replace(/^﻿/, ''); // strip BOM
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && s[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some((v) => v !== '')) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); if (row.some((v) => v !== '')) rows.push(row); }
+  if (!rows.length) return [];
+  const headers = rows[0].map((h) => h.trim().toLowerCase());
+  return rows.slice(1).map((r) => {
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (r[idx] || '').trim(); });
+    return obj;
+  });
+}
+
+// Find an existing row by name (case-insensitive); optionally create it.
+function lookupIdByName(table, name, create) {
+  const n = (name || '').trim();
+  if (!n) return null;
+  const found = db.prepare(`SELECT id FROM ${table} WHERE name = ? COLLATE NOCASE`).get(n);
+  if (found) return found.id;
+  if (!create) return null;
+  return db.prepare(`INSERT INTO ${table} (name) VALUES (?)`).run(n).lastInsertRowid;
+}
+
+const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
+app.post('/api/files/import-csv', requireAuth, (req, res) => {
+  csvUpload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'Please choose a CSV file' });
+
+    let rows;
+    try {
+      rows = parseCsv(req.file.buffer.toString('utf8'));
+    } catch {
+      return res.status(400).json({ error: 'Could not read the CSV file' });
+    }
+    if (!rows.length) return res.status(400).json({ error: 'The CSV has no data rows' });
+    if (!('id' in rows[0])) return res.status(400).json({ error: 'The CSV needs an "id" column' });
+
+    const str = (v, n) => (v || '').toString().trim().slice(0, n);
+    // (csv header -> column, max length) for the plain text fields
+    const textFields = [
+      ['title', 'title', 200], ['doc_no', 'doc_no', 100], ['revision', 'revision', 50],
+      ['doc_date', 'doc_date', 50], ['model', 'model', 200],
+      ['product_name', 'product_name', 200], ['product_no', 'product_no', 500],
+    ];
+    let updated = 0;
+    const errors = [];
+
+    const apply = db.transaction(() => {
+      for (const r of rows) {
+        const id = Number(r.id);
+        if (!id) { errors.push(`Skipped a row with a missing/invalid id`); continue; }
+        const cur = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(id);
+        if (!cur) { errors.push(`id ${r.id}: no such document`); continue; }
+
+        const sets = [];
+        const vals = [];
+        for (const [header, col, max] of textFields) {
+          if (header in r) { sets.push(`${col} = ?`); vals.push(str(r[header], max)); }
+        }
+        // Classification by name (type/department must already exist; customer is created if new)
+        if ('customer' in r) {
+          sets.push('customer_id = ?');
+          vals.push(lookupIdByName('customers', r.customer, true));
+        }
+        if ('doc_type' in r && r.doc_type.trim()) {
+          const tid = lookupIdByName('doc_types', r.doc_type, false);
+          if (tid) { sets.push('doc_type_id = ?'); vals.push(tid); }
+          else errors.push(`id ${r.id}: unknown type "${r.doc_type}" (left unchanged)`);
+        }
+        if ('department' in r && r.department.trim()) {
+          const did = lookupIdByName('departments', r.department, false);
+          if (did) { sets.push('department_id = ?'); vals.push(did); }
+          else errors.push(`id ${r.id}: unknown department "${r.department}" (left unchanged)`);
+        }
+        if (!sets.length) continue;
+
+        vals.push(id);
+        db.prepare(`UPDATE sop_files SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+
+        // Re-index product codes if the doc_no / product_no may have changed
+        const after = db.prepare('SELECT doc_no, product_no FROM sop_files WHERE id = ?').get(id);
+        setProductCodes(id, after.product_no, after.doc_no);
+        updated++;
+      }
+    });
+    apply();
+
+    res.json({ updated, total: rows.length, errors });
+  });
+});
+
 // Download (or inline view with ?inline=1 — used by the barcode lookup so the
 // inspection spec opens straight in the browser instead of downloading)
 app.get('/api/files/:id/download', requireAuth, (req, res) => {

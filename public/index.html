@@ -86,6 +86,7 @@
           <input type="search" id="search" data-i18n-ph="searchPh" placeholder="🔍 Search by product no, document no, title, product name or document content" />
           <button id="scanOpen" class="ghost" data-i18n="barcode">📷 Barcode</button>
           <button id="bulkOpen" class="ghost" data-i18n="bulk">⧉ Bulk</button>
+          <button id="csvOpen" class="ghost" data-i18n="csv">⇅ CSV</button>
           <button id="uploadOpen" class="primary" data-i18n="upload">+ Upload</button>
         </section>
 
@@ -174,6 +175,22 @@
         <ul id="bulkResults" class="scan-results"></ul>
         <div class="dialog-actions">
           <button type="button" id="bulkClose" class="ghost" data-i18n="close">Close</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- CSV export / import -->
+    <dialog id="csvDialog">
+      <form method="dialog">
+        <h2 data-i18n="csvTitle">CSV export / import</h2>
+        <p class="hint" data-i18n="csvHint">Export the current list to a spreadsheet, edit the metadata, then import it back. Rows are matched by the id column; the document files themselves are not changed.</p>
+        <div class="csv-row">
+          <button type="button" id="csvExport" class="primary" data-i18n="csvExport">⬇ Export current list</button>
+          <label class="link-title"><span data-i18n="csvImport">⬆ Import edited CSV</span><input type="file" id="csvInput" accept=".csv,text/csv" hidden /></label>
+        </div>
+        <ul id="csvResults" class="scan-results"></ul>
+        <div class="dialog-actions">
+          <button type="button" id="csvClose" class="ghost" data-i18n="close">Close</button>
         </div>
       </form>
     </dialog>

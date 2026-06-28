@@ -54,6 +54,12 @@ const I18N = {
     confirmDup: 'A document with this Doc No. and Rev already exists. Upload anyway?',
     dashboard: '📊 Dashboard', dashTitle: '📊 Dashboard', dashDocs: 'Documents',
     dashNoProd: 'No product no', dashNoCust: 'No customer', dashRecent: 'Recent uploads',
+    csv: '⇅ CSV', csvTitle: 'CSV export / import',
+    csvHint: 'Export the current list to a spreadsheet, edit the metadata, then import it back. Rows are matched by the id column; the document files themselves are not changed.',
+    csvExport: '⬇ Export current list', csvImport: '⬆ Import edited CSV',
+    csvEmpty: 'Nothing to export.', csvImporting: 'Importing…',
+    csvDone: (u, total) => `✓ Updated ${u} of ${total} row(s).`,
+    csvFail: (e) => `Import failed: ${e}`,
   },
   th: {
     settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
@@ -105,6 +111,12 @@ const I18N = {
     confirmDup: 'มีเอกสารเลขที่และฉบับนี้อยู่แล้ว ต้องการอัปโหลดต่อหรือไม่?',
     dashboard: '📊 แดชบอร์ด', dashTitle: '📊 แดชบอร์ด', dashDocs: 'เอกสาร',
     dashNoProd: 'ไม่มีรหัสสินค้า', dashNoCust: 'ไม่มีลูกค้า', dashRecent: 'อัปโหลดล่าสุด',
+    csv: '⇅ CSV', csvTitle: 'นำออก / นำเข้า CSV',
+    csvHint: 'นำรายการปัจจุบันออกเป็นสเปรดชีต แก้ไขข้อมูล แล้วนำเข้ากลับ ระบบจับคู่แถวด้วยคอลัมน์ id โดยไม่แก้ไขไฟล์เอกสาร',
+    csvExport: '⬇ นำออกรายการปัจจุบัน', csvImport: '⬆ นำเข้า CSV ที่แก้ไข',
+    csvEmpty: 'ไม่มีข้อมูลให้นำออก', csvImporting: 'กำลังนำเข้า…',
+    csvDone: (u, total) => `✓ อัปเดต ${u} จาก ${total} แถว`,
+    csvFail: (e) => `นำเข้าไม่สำเร็จ: ${e}`,
   },
 };
 let LANG = localStorage.getItem('lang') === 'th' ? 'th' : 'en';
@@ -565,6 +577,57 @@ async function openDashboard() {
   $('#dashDialog').showModal();
 }
 
+// --- CSV export / import ---------------------------------------------------
+// Columns written on export and recognised on import (id is the match key).
+const CSV_COLUMNS = [
+  'id', 'doc_no', 'revision', 'title', 'doc_type', 'department', 'customer',
+  'doc_date', 'model', 'product_name', 'product_no', 'codes', 'uploaded_at', 'uploaded_by',
+];
+const CSV_FIELD = {
+  doc_type: 'doc_type_name', department: 'department_name', customer: 'customer_name',
+  uploaded_by: 'uploaded_by_name',
+};
+function csvCell(v) {
+  const s = v == null ? '' : String(v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+// Export the list currently shown (honours the active filters / revisions toggle)
+function exportCsv() {
+  if (!lastFiles.length) {
+    $('#csvResults').innerHTML = `<li class="muted">${t('csvEmpty')}</li>`;
+    return;
+  }
+  const head = CSV_COLUMNS.join(',');
+  const body = lastFiles
+    .map((f) => CSV_COLUMNS.map((c) => csvCell(f[CSV_FIELD[c] || c])).join(','))
+    .join('\r\n');
+  const blob = new Blob(['﻿' + head + '\r\n' + body], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const today = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `sop-list-${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function importCsv(file) {
+  const out = $('#csvResults');
+  out.innerHTML = `<li>${t('csvImporting')}</li>`;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await api('/api/files/import-csv', { method: 'POST', body: fd });
+    const lines = [`<li>${t('csvDone', r.updated, r.total)}</li>`];
+    (r.errors || []).forEach((e) => lines.push(`<li class="muted">${esc(e)}</li>`));
+    out.innerHTML = lines.join('');
+    await Promise.all([loadAxis('customer'), loadFiles()]);
+  } catch (err) {
+    out.innerHTML = `<li class="muted">${esc(t('csvFail', err.message))}</li>`;
+  }
+}
+
 // --- Settings (manage Types / Departments / Customers) ---------------------
 function renderSettings() {
   document.querySelectorAll('.settings-col').forEach((col) => {
@@ -926,6 +989,19 @@ function bindEvents() {
   // --- Dashboard ----------------------------------------------------------
   $('#dashOpen').addEventListener('click', openDashboard);
   $('#dashClose').addEventListener('click', () => $('#dashDialog').close());
+
+  // --- CSV export / import ------------------------------------------------
+  $('#csvOpen').addEventListener('click', () => {
+    $('#csvResults').innerHTML = '';
+    $('#csvDialog').showModal();
+  });
+  $('#csvClose').addEventListener('click', () => $('#csvDialog').close());
+  $('#csvExport').addEventListener('click', exportCsv);
+  $('#csvInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) importCsv(file);
+    e.target.value = '';
+  });
 
   // --- Settings (manage Types / Departments / Customers) ------------------
   const settingsDialog = $('#settingsDialog');
