@@ -51,6 +51,7 @@ const I18N = {
     vMissing: 'The file is missing on the server. On the free hosting plan, uploaded files are erased whenever the app restarts — re-upload it, or switch to persistent storage (local Docker / paid plan).',
     vHttp: (s) => `Could not load the document (HTTP ${s}).`, vErr: (e) => `Could not load the document (${e}).`,
     promptName: 'New name:', confirmDelFile: 'Delete this file?', confirmDelAxis: (l) => `Delete this ${l}?`,
+    confirmDup: 'A document with this Doc No. and Rev already exists. Upload anyway?',
   },
   th: {
     settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
@@ -99,6 +100,7 @@ const I18N = {
     vMissing: 'ไม่พบไฟล์บนเซิร์ฟเวอร์ ในแพ็กเกจฟรี ไฟล์ที่อัปโหลดจะถูกลบเมื่อแอปรีสตาร์ท — อัปโหลดใหม่ หรือเปลี่ยนไปใช้ที่เก็บถาวร',
     vHttp: (s) => `โหลดเอกสารไม่สำเร็จ (HTTP ${s})`, vErr: (e) => `โหลดเอกสารไม่สำเร็จ (${e})`,
     promptName: 'ชื่อใหม่:', confirmDelFile: 'ลบเอกสารนี้?', confirmDelAxis: (l) => `ลบ ${l} นี้?`,
+    confirmDup: 'มีเอกสารเลขที่และฉบับนี้อยู่แล้ว ต้องการอัปโหลดต่อหรือไม่?',
   },
 };
 let LANG = localStorage.getItem('lang') === 'th' ? 'th' : 'en';
@@ -222,7 +224,12 @@ async function api(path, opts) {
     throw new Error('unauthorized');
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Error (${res.status})`);
+  if (!res.ok) {
+    const err = new Error(data.error || `Error (${res.status})`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 
@@ -403,6 +410,7 @@ async function bulkOne(file, li) {
   }
   const up = new FormData();
   up.append('file', file);
+  up.append('force', '1'); // bulk is intentional; don't block on duplicates
   up.append('title', meta.title || '');
   up.append('doc_type_id', typeId);
   up.append('department_id', deptId);
@@ -1036,7 +1044,16 @@ function bindEvents() {
     fd.append('model', $('#model').value);
     fd.append('product_no', $('#productNo').value);
     try {
-      await api('/api/files', { method: 'POST', body: fd });
+      try {
+        await api('/api/files', { method: 'POST', body: fd });
+      } catch (err) {
+        if (err.data && err.data.duplicate && confirm(t('confirmDup'))) {
+          fd.append('force', '1');
+          await api('/api/files', { method: 'POST', body: fd });
+        } else {
+          throw err;
+        }
+      }
       dialog.close();
       await loadFiles();
       await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);

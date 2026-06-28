@@ -485,6 +485,19 @@ app.post('/api/files', requireAuth, (req, res) => {
     const model = str(req.body.model, 200);
     const productName = str(req.body.product_name, 200);
     const productNo = str(req.body.product_no, 500);
+
+    // Warn on an exact duplicate (same document number AND revision) unless the
+    // client confirms with force=1. Lets the user catch accidental re-uploads.
+    if (docNo && !req.body.force) {
+      const dup = db.prepare('SELECT id FROM sop_files WHERE doc_no = ? AND revision = ?').get(docNo, revision);
+      if (dup) {
+        cleanup();
+        return res
+          .status(409)
+          .json({ error: 'A document with this Doc No. and Rev already exists.', duplicate: true });
+      }
+    }
+
     const pdfText = extractFullText(join(UPLOAD_DIR, req.file.filename), req.file.mimetype);
 
     const info = db
