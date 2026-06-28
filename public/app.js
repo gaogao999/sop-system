@@ -52,6 +52,8 @@ const I18N = {
     vHttp: (s) => `Could not load the document (HTTP ${s}).`, vErr: (e) => `Could not load the document (${e}).`,
     promptName: 'New name:', confirmDelFile: 'Delete this file?', confirmDelAxis: (l) => `Delete this ${l}?`,
     confirmDup: 'A document with this Doc No. and Rev already exists. Upload anyway?',
+    dashboard: '📊 Dashboard', dashTitle: '📊 Dashboard', dashDocs: 'Documents',
+    dashNoProd: 'No product no', dashNoCust: 'No customer', dashRecent: 'Recent uploads',
   },
   th: {
     settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
@@ -101,6 +103,8 @@ const I18N = {
     vHttp: (s) => `โหลดเอกสารไม่สำเร็จ (HTTP ${s})`, vErr: (e) => `โหลดเอกสารไม่สำเร็จ (${e})`,
     promptName: 'ชื่อใหม่:', confirmDelFile: 'ลบเอกสารนี้?', confirmDelAxis: (l) => `ลบ ${l} นี้?`,
     confirmDup: 'มีเอกสารเลขที่และฉบับนี้อยู่แล้ว ต้องการอัปโหลดต่อหรือไม่?',
+    dashboard: '📊 แดชบอร์ด', dashTitle: '📊 แดชบอร์ด', dashDocs: 'เอกสาร',
+    dashNoProd: 'ไม่มีรหัสสินค้า', dashNoCust: 'ไม่มีลูกค้า', dashRecent: 'อัปโหลดล่าสุด',
   },
 };
 let LANG = localStorage.getItem('lang') === 'th' ? 'th' : 'en';
@@ -513,6 +517,54 @@ function setCodeFilter(code) {
   loadFiles();
 }
 
+// --- Dashboard (overview built from the current document set) --------------
+async function openDashboard() {
+  let files = [];
+  try {
+    files = await api('/api/files'); // current revisions only
+  } catch {
+    return;
+  }
+  $('#dashTotal').textContent = files.length;
+  $('#dashDue').textContent = files.filter(isExpired).length;
+  $('#dashNoProd').textContent = files.filter((f) => !f.product_no).length;
+  $('#dashNoCust').textContent = files.filter((f) => !f.customer_id).length;
+
+  const groupCount = (key) => {
+    const m = new Map();
+    files.forEach((f) => {
+      const k = f[key] || t('none');
+      m.set(k, (m.get(k) || 0) + 1);
+    });
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const renderBars = (sel, entries) => {
+    const max = Math.max(1, ...entries.map((e) => e[1]));
+    $(sel).innerHTML =
+      entries
+        .map(
+          ([k, n]) =>
+            `<li><span class="dash-bar-label">${esc(k)}</span>` +
+            `<span class="dash-bar"><span class="dash-bar-fill" style="width:${((n / max) * 100).toFixed(0)}%"></span></span>` +
+            `<span class="dash-bar-n">${n}</span></li>`
+        )
+        .join('') || `<li class="muted">-</li>`;
+  };
+  renderBars('#dashType', groupCount('doc_type_name'));
+  renderBars('#dashDept', groupCount('department_name'));
+  renderBars('#dashCust', groupCount('customer_name'));
+
+  const recent = [...files]
+    .sort((a, b) => (a.uploaded_at < b.uploaded_at ? 1 : -1))
+    .slice(0, 5);
+  $('#dashRecent').innerHTML =
+    recent
+      .map((f) => `<li>${fmtDay(f.uploaded_at)} — ${esc(f.doc_no || '')} ${esc(f.title)}</li>`)
+      .join('') || `<li class="muted">-</li>`;
+
+  $('#dashDialog').showModal();
+}
+
 // --- Settings (manage Types / Departments / Customers) ---------------------
 function renderSettings() {
   document.querySelectorAll('.settings-col').forEach((col) => {
@@ -870,6 +922,10 @@ function bindEvents() {
     $('#scanInput').value = '';
     $('#scanInput').focus();
   });
+
+  // --- Dashboard ----------------------------------------------------------
+  $('#dashOpen').addEventListener('click', openDashboard);
+  $('#dashClose').addEventListener('click', () => $('#dashDialog').close());
 
   // --- Settings (manage Types / Departments / Customers) ------------------
   const settingsDialog = $('#settingsDialog');

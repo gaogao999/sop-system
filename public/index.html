@@ -24,6 +24,7 @@
       <div class="user-box">
         <span id="me"></span>
         <button id="langToggle" class="ghost" type="button">ไทย</button>
+        <button id="dashOpen" class="ghost" type="button" data-i18n="dashboard">📊 Dashboard</button>
         <button id="settingsOpen" class="ghost" type="button" data-i18n="settings">⚙ Settings</button>
         <form method="post" action="/logout" class="inline">
           <button class="ghost" type="submit" data-i18n="signout">Sign out</button>
@@ -189,6 +190,27 @@
       <div id="qrCode" class="qr-code"></div>
       <div id="qrText" class="qr-text"></div>
       <p class="hint" data-i18n="qrHint">Scanning this code with the Barcode camera opens this document.</p>
+    </dialog>
+
+    <!-- Dashboard (overview) -->
+    <dialog id="dashDialog" class="settings">
+      <div class="settings-head">
+        <h2 data-i18n="dashTitle">📊 Dashboard</h2>
+        <button type="button" id="dashClose" class="ghost" data-i18n="close">Close</button>
+      </div>
+      <div class="dash-cards">
+        <div class="dash-card"><div class="dash-num" id="dashTotal">0</div><div data-i18n="dashDocs">Documents</div></div>
+        <div class="dash-card"><div class="dash-num warn" id="dashDue">0</div><div data-i18n="reviewDue">Review due (&gt;2y)</div></div>
+        <div class="dash-card"><div class="dash-num" id="dashNoProd">0</div><div data-i18n="dashNoProd">No product no</div></div>
+        <div class="dash-card"><div class="dash-num" id="dashNoCust">0</div><div data-i18n="dashNoCust">No customer</div></div>
+      </div>
+      <div class="dash-cols">
+        <div><h3 data-i18n="colType">Type</h3><ul id="dashType" class="dash-bars"></ul></div>
+        <div><h3 data-i18n="colDept">Department</h3><ul id="dashDept" class="dash-bars"></ul></div>
+        <div><h3 data-i18n="colCust">Customer</h3><ul id="dashCust" class="dash-bars"></ul></div>
+      </div>
+      <h3 data-i18n="dashRecent">Recent uploads</h3>
+      <ul id="dashRecent" class="dash-recent"></ul>
     </dialog>
 
     <!-- Settings: manage Types / Departments / Customers -->
