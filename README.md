@@ -10,6 +10,9 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 - **Header metadata** — Document No., Revision, Document date, 品名 (product name), Model and Product No. are stored alongside each file.
 - **Document-number auto-fill** — the document number encodes `<type>-<department>-<serial>` (e.g. `SOP-QC-0021`), so typing it auto-selects the matching Type and Department.
 - **Experimental PDF header extraction** — on upload, page 1 of a PDF is parsed (`pdftotext`) to pre-fill the document number, title, revision, date, 品名, model and product number, and to auto-select the customer from the Model line (`TOTO : …`). The result is editable and reviewed before saving; if `pdftotext` is unavailable it degrades to manual entry.
+- **OCR for scanned PDFs** — when a PDF has little or no embedded text (a scan / image-only document), it is rasterised (`pdftoppm`) and read with OCR (`tesseract`) so the header auto-fill and full-text search still work. OCR is bounded to the first `OCR_MAX_PAGES` pages and degrades silently to the no-OCR result if the tools are unavailable.
+- **Dashboard** — a one-click overview: total documents, how many are review-due (>2y), how many are missing a product number or a customer, breakdowns by Type / Department / Customer, and the most recent uploads.
+- **CSV export / import** — export the currently shown list to a spreadsheet, edit the metadata, then import it back. Rows are matched by `id` (the document files themselves are never touched); recognised columns update title / doc no / rev / date / model / 品名 / 品番, assign a customer (created if new) and re-classify Type / Department by name. Product codes are re-indexed after each row so barcode lookup stays in sync.
 - **Filter by all three axes at once** (Type × Department × Customer, including a "None" filter for files with no customer), plus **search** (partial match on title, description, document number, product name/number and original file name)
 - **Filter by product code (品番)** — each 品番 shows as a clickable chip in the list; click one to see every document maintained for that exact product (with a live count), combinable with the other filters. Backed by `/api/files?code=`.
 - **Per-column filters** — a filter row under the table header: text boxes for Doc No./Rev, Title (品名 included) and uploader, and dropdowns for Type / Department / Customer that stay in sync with the sidebar. All filters combine (AND).
@@ -26,7 +29,7 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 | Session | express-session + SQLite store (cookie name `connect.sid`, survives restarts) |
 | Auth | bcryptjs password hashing |
 | Upload | multer (validates extension + MIME type) |
-| PDF extraction | `pdftotext` (poppler-utils) — optional; bundled in the Docker image |
+| PDF extraction / OCR | `pdftotext` + `pdftoppm` (poppler-utils) and `tesseract` (tesseract-ocr) — optional; bundled in the Docker image |
 | Database | SQLite (better-sqlite3) |
 | UI | HTML / CSS / vanilla JS (no build step) |
 
@@ -50,9 +53,10 @@ npm start
 Then open http://localhost:3000 (you are redirected to the sign-in page if not logged in).
 
 > For the experimental PDF header auto-fill to work locally, install `pdftotext`
-> (`apt-get install poppler-utils` / `brew install poppler`). It is already
-> included in the Docker image. Without it, upload still works — you just fill
-> the header fields in manually.
+> (`apt-get install poppler-utils` / `brew install poppler`); for OCR of scanned
+> PDFs also install `tesseract` (`apt-get install tesseract-ocr` / `brew install
+> tesseract`). Both are already included in the Docker image. Without them, upload
+> still works — you just fill the header fields in manually.
 
 ### Initial login
 
@@ -79,6 +83,8 @@ node seed.js <username> <password> "Display Name"
 | `SESSION_SECRET` | (dev default) | Session signing key. Always set in production |
 | `ADMIN_USER` / `ADMIN_PASS` | `admin` / `admin123` | Admin user created on first run |
 | `NODE_ENV` / `TRUST_PROXY` | - | `production` + `TRUST_PROXY=1` enables Secure cookies & proxy trust |
+| `OCR_LANG` | `eng` | Tesseract language(s) for scanned-PDF OCR (e.g. `eng+tha`) |
+| `OCR_MAX_PAGES` | `20` | Max pages to OCR per scanned PDF |
 
 ## API
 
@@ -98,7 +104,8 @@ node seed.js <username> <password> "Display Name"
 | DELETE | `/api/customers/:id` | Delete customer (its files become unassigned) |
 | GET | `/api/files?q=&type=&department=&customer=&code=&docref=&title=&by=&revisions=` | List / search files. Combinable filters: axes (`type`/`department`/`customer`, `customer=none` = none), `code=` (exact 品番), per-column partial matches `docref=` (doc no / rev / date), `title=` (title / 品名), `by=` (uploader). Only the current revision is returned unless `revisions=all`. Each row includes `codes`, `is_current` and `revision_count`. |
 | POST | `/api/extract` | Parse an uploaded PDF's header and return `doc_no` / `title` / `revision` / `doc_date` / `model` / `product_name` / `product_no` / `customer_name` (+ `type_code` / `dept_code`). The file is parsed and discarded, not stored. |
-| POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`** (required), and optional `customer_id`, `doc_no`, `revision`, `doc_date`, `product_name`, `model`, `product_no`) |
+| POST | `/api/files` | Upload (multipart: `file`, `title`, `description`, **`doc_type_id`**, **`department_id`** (required), and optional `customer_id`, `doc_no`, `revision`, `doc_date`, `product_name`, `model`, `product_no`). Returns 409 `{duplicate:true}` on a same Doc No.+Rev clash unless `force=1`. |
+| POST | `/api/files/import-csv` | Bulk-update document metadata from a CSV (multipart `file`). Rows matched by `id`; updates title / doc no / rev / date / model / 品名 / 品番, assigns a customer (created if new) and re-classifies Type / Department by name. Returns `{updated, total, errors}`. |
 | GET | `/api/lookup?code=` | Barcode lookup: exact match on the indexed 品番 / doc-number codes first, then a substring fallback across 品番 / doc number / product name / file name |
 | GET | `/api/files/:id/download` | Download (add `?inline=1` to view in the browser instead of downloading) |
 | DELETE | `/api/files/:id` | Delete |
@@ -158,8 +165,9 @@ When you later move to the company server, run the exact same
 npm install && npm start   # data in ./data and ./uploads
 ```
 
-> Note: experimental PDF header extraction needs `pdftotext` (poppler-utils);
-> the Docker image already includes it.
+> Note: experimental PDF header extraction needs `pdftotext` (poppler-utils) and
+> scanned-PDF OCR needs `tesseract` (tesseract-ocr); the Docker image already
+> includes both.
 
 ### Docker (single command)
 

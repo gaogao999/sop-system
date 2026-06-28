@@ -5,7 +5,8 @@ import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
-import { mkdirSync, existsSync, unlinkSync, createReadStream, readFileSync } from 'node:fs';
+import { mkdirSync, existsSync, unlinkSync, createReadStream, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import db from './db.js';
@@ -80,6 +81,51 @@ const upload = multer({
 // regexes. The result only ever pre-fills the form — the user reviews/edits
 // before saving — so imperfect extraction is acceptable.
 
+// --- OCR fallback (scanned / image-only PDFs) ------------------------------
+// Some documents are scans with no embedded text, so pdftotext returns almost
+// nothing. We rasterise the page range with pdftoppm and run tesseract on each
+// image. OCR is best-effort: if the tools are missing or anything fails we
+// return '' and the caller carries on with whatever text it already had.
+const OCR_LANG = process.env.OCR_LANG || 'eng';
+const OCR_MAX_PAGES = Number(process.env.OCR_MAX_PAGES) || 20; // bound the work
+const nonSpace = (s) => (s || '').replace(/\s/g, '').length;
+
+function ocrPdf(filePath, firstPage, lastPage) {
+  const dir = join(tmpdir(), `ocr-${randomUUID()}`);
+  try {
+    mkdirSync(dir, { recursive: true });
+    const prefix = join(dir, 'p');
+    // Rasterise to PNG at 200 DPI — a good accuracy/speed balance for OCR
+    execFileSync(
+      'pdftoppm',
+      ['-png', '-r', '200', '-f', String(firstPage), '-l', String(lastPage), filePath, prefix],
+      { maxBuffer: 64 * 1024 * 1024 }
+    );
+    const images = readdirSync(dir).filter((f) => f.endsWith('.png')).sort();
+    let text = '';
+    for (const img of images) {
+      try {
+        text +=
+          execFileSync('tesseract', [join(dir, img), 'stdout', '-l', OCR_LANG], {
+            encoding: 'utf8',
+            maxBuffer: 16 * 1024 * 1024,
+          }) + '\n';
+      } catch {
+        /* skip a page that fails OCR */
+      }
+    }
+    return text;
+  } catch {
+    return ''; // pdftoppm / tesseract missing or failed
+  } finally {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* ignore temp cleanup errors */
+    }
+  }
+}
+
 // A -layout dump separates columns with runs of spaces; keep only the first
 // column of a captured line and collapse the rest.
 const firstCol = (s) =>
@@ -113,8 +159,16 @@ function extractHeader(filePath, originalName, mimetype) {
       maxBuffer: 8 * 1024 * 1024,
     });
   } catch {
-    return out; // pdftotext missing or failed — fall back to name-only result
+    text = ''; // pdftotext missing or failed — OCR may still recover the header
   }
+
+  // Scanned/image-only first page yields almost no text — OCR it and use that
+  // if it recovers more than pdftotext did.
+  if (nonSpace(text) < 20) {
+    const ocr = ocrPdf(filePath, 1, 1);
+    if (nonSpace(ocr) > nonSpace(text)) text = ocr;
+  }
+  if (!text) return out; // name-only result
 
   const docNo = text.match(/\b([A-Z]{2,4}-[A-Z]{2,4}-\d{2,5})\b/);
   if (docNo) out.doc_no = docNo[1];
@@ -159,15 +213,21 @@ function extractHeader(filePath, originalName, mimetype) {
 // reasonable; empty for non-PDFs or if pdftotext is unavailable.
 function extractFullText(filePath, mimetype) {
   if (mimetype !== 'application/pdf') return '';
+  let txt = '';
   try {
-    const txt = execFileSync('pdftotext', [filePath, '-'], {
+    txt = execFileSync('pdftotext', [filePath, '-'], {
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,
     });
-    return txt.replace(/\s+/g, ' ').trim().slice(0, 200000);
   } catch {
-    return '';
+    txt = '';
   }
+  // Scanned PDF: little/no embedded text — OCR the first OCR_MAX_PAGES pages.
+  if (nonSpace(txt) < 100) {
+    const ocr = ocrPdf(filePath, 1, OCR_MAX_PAGES);
+    if (ocr.length > txt.length) txt = ocr;
+  }
+  return txt.replace(/\s+/g, ' ').trim().slice(0, 200000);
 }
 
 // --- Product codes (品番) for exact barcode matching -----------------------
