@@ -96,11 +96,13 @@ function ocrPdf(filePath, firstPage, lastPage) {
   try {
     mkdirSync(dir, { recursive: true });
     const prefix = join(dir, 'p');
-    // Rasterise to PNG at 200 DPI — a good accuracy/speed balance for OCR
+    // Rasterise to grayscale PNG at 150 DPI. Lower DPI + gray keeps the memory
+    // footprint small enough for constrained hosts (e.g. a 512MB free tier),
+    // and the timeout stops a pathological file from blocking the instance.
     execFileSync(
       'pdftoppm',
-      ['-png', '-r', '200', '-f', String(firstPage), '-l', String(lastPage), filePath, prefix],
-      { maxBuffer: 64 * 1024 * 1024 }
+      ['-png', '-gray', '-r', '150', '-f', String(firstPage), '-l', String(lastPage), filePath, prefix],
+      { maxBuffer: 64 * 1024 * 1024, timeout: 20000 }
     );
     const images = readdirSync(dir).filter((f) => f.endsWith('.png')).sort();
     let text = '';
@@ -110,9 +112,10 @@ function ocrPdf(filePath, firstPage, lastPage) {
           execFileSync('tesseract', [join(dir, img), 'stdout', '-l', OCR_LANG], {
             encoding: 'utf8',
             maxBuffer: 16 * 1024 * 1024,
+            timeout: 20000,
           }) + '\n';
       } catch {
-        /* skip a page that fails OCR */
+        /* skip a page that fails or times out */
       }
     }
     return text;
@@ -158,9 +161,10 @@ function extractHeader(filePath, originalName, mimetype) {
     text = execFileSync('pdftotext', ['-f', '1', '-l', '1', '-layout', filePath, '-'], {
       encoding: 'utf8',
       maxBuffer: 8 * 1024 * 1024,
+      timeout: 10000,
     });
   } catch {
-    text = ''; // pdftotext missing or failed — OCR may still recover the header
+    text = ''; // pdftotext missing/failed/timed out — OCR may still recover the header
   }
 
   // Scanned/image-only first page yields almost no text — OCR it and use that
@@ -219,6 +223,7 @@ function extractFullText(filePath, mimetype) {
     txt = execFileSync('pdftotext', [filePath, '-'], {
       encoding: 'utf8',
       maxBuffer: 32 * 1024 * 1024,
+      timeout: 20000,
     });
   } catch {
     txt = '';

@@ -921,10 +921,21 @@ async function darExtract(manual) {
     return;
   }
   status.textContent = t('reading');
-  try {
+  // Reading is best-effort. On a free/sleeping host the first call can fail
+  // (cold start / 503), so try once more after a short wait before giving up.
+  const callExtract = async () => {
     const fd = new FormData();
     fd.append('file', f);
-    const meta = await api('/api/extract', { method: 'POST', body: fd });
+    return api('/api/extract', { method: 'POST', body: fd });
+  };
+  try {
+    let meta;
+    try {
+      meta = await callExtract();
+    } catch (e1) {
+      await new Promise((r) => setTimeout(r, 1500));
+      meta = await callExtract();
+    }
     // Category from the document-number prefix (e.g. SOP-QC-0021 -> SOP)
     if (meta.type_code) {
       const cat = docCategories.find((c) => c.code.toUpperCase() === meta.type_code.toUpperCase());
