@@ -481,3 +481,45 @@ dialog.settings { width: min(900px, 94vw); padding: 20px 24px; }
 /* ---- CSV export / import ---- */
 .csv-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0 4px; }
 .csv-row .link-title { cursor: pointer; color: var(--primary); font-weight: 600; }
+
+/* ---- Print: controlled-copy stamp + document only ---- */
+.print-stamp { display: none; } /* shown only when printing */
+@media print {
+  /* Hide the whole app, reveal only the open document viewer */
+  body > *:not(#viewDialog) { display: none !important; }
+  #viewDialog[open] {
+    position: static;
+    display: block;
+    inset: auto;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: visible;
+  }
+  #viewDialog::backdrop { display: none; }
+  .viewer-head, #viewLoading, #viewNotice { display: none !important; }
+  /* Stamp header on every printed copy (ISO controlled-copy record) */
+  .print-stamp {
+    display: block !important;
+    border-bottom: 2px solid #000;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+    color: #000;
+  }
+  .print-stamp .ps-bar { display: flex; justify-content: space-between; font-weight: 700; font-size: 12pt; }
+  .print-stamp .ps-title { font-size: 14pt; font-weight: 700; margin-top: 4px; }
+  .print-stamp .ps-meta { font-size: 9pt; color: #333; margin-top: 2px; }
+  #viewFrame {
+    display: block;
+    width: 100%;
+    height: auto;
+    min-height: 240mm;
+    border: none;
+  }
+  @page { margin: 12mm; }
+}

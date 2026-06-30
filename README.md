@@ -19,6 +19,9 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 - **Revision control** — documents sharing a document number are revisions of the same document; the highest revision number is the **current** one. The list and the barcode lookup show/open only the current revision (so a scan always opens the latest), the current row shows a "最新 (全N版)" badge, and a **旧版も表示** toggle reveals superseded revisions (marked 旧版, retained for traceability — never deleted).
 - **Barcode / product-number lookup (inspection station)** — scan a product number (品番) with a keyboard-type barcode reader (or type it) and the matching inspection spec opens immediately; if several documents match, a short pick-list is shown. Each file's 品番 / doc number are indexed as individual codes, so lookup is an **exact** match first (scanning `DD360` never hits `DD3600`), falling back to a substring search only when there is no exact hit.
 - **In-app preview** — click a document's title or **View** to open it on screen without downloading. PDFs render inline in a modal; Office files (Excel/Word) can't be rendered by the browser, so a notice with a Download button is shown.
+- **Print with controlled-copy stamp** — the **🖨 Print** button in the viewer prints the document with an auto-stamped header (document no., revision, document date, print date/time and the user who printed it) via `@media print`; all app chrome is hidden so only the stamped document prints.
+- **PWA / installable** — web app manifest, icons and a service worker (cached app shell) so it can be added to a phone's home screen and loads reliably on the shop-floor LAN.
+- **Pluggable authentication** — sign-in goes through `POST /checklogin` (the same shape as the shared KGTH company login). `AUTH_MODE=local` (default) uses the built-in user table; the seam is ready to delegate to the company endpoint (`AUTH_MODE=upstream`) once its contract is confirmed.
 - **File list, download and delete**
 
 ## Stack
@@ -85,6 +88,9 @@ node seed.js <username> <password> "Display Name"
 | `NODE_ENV` / `TRUST_PROXY` | - | `production` + `TRUST_PROXY=1` enables Secure cookies & proxy trust |
 | `OCR_LANG` | `eng` | Tesseract language(s) for scanned-PDF OCR (e.g. `eng+tha`) |
 | `OCR_MAX_PAGES` | `20` | Max pages to OCR per scanned PDF |
+| `AUTH_MODE` | `local` | `local` = built-in user table; `upstream` = delegate to the company `/checklogin` (not yet wired — denies until implemented) |
+
+See `.env.example` for a copy-paste starting point.
 
 ## API
 

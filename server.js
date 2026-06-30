@@ -286,18 +286,41 @@ const requireAuth = (req, res, next) => {
 };
 
 // --- Auth ------------------------------------------------------------------
+// Credential verification is isolated here so it can be swapped for the real
+// company sign-in later without touching the route. The deployed KGTH systems
+// all authenticate through a shared `POST /checklogin` (form: username =
+// 社員ID, password) that issues a `connect.sid` cookie — exactly this shape.
+// For now AUTH_MODE=local checks the built-in SQLite user table (the mock);
+// set AUTH_MODE=upstream + AUTH_UPSTREAM_URL once the company endpoint contract
+// (cookie sharing / CORS / session validation) is confirmed with IT.
+const AUTH_MODE = process.env.AUTH_MODE || 'local';
+
+function verifyCredentials(username, password) {
+  // Returns the session user object on success, or null on failure.
+  if (AUTH_MODE !== 'local') {
+    // Placeholder for delegating to the shared company /checklogin. Left
+    // unimplemented on purpose — wiring it needs the confirmed upstream
+    // contract; until then any non-local mode safely denies sign-in.
+    return null;
+  }
+  const u = (username || '').toString().trim();
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(u);
+  if (!user || !bcrypt.compareSync((password || '').toString(), user.password_hash)) return null;
+  return { id: user.id, username: user.username, display_name: user.display_name };
+}
+
 // Sign in: POST /checklogin (username, password sent as a form)
 app.post('/checklogin', (req, res) => {
   const { username, password } = req.body;
   const wantsJson = (req.get('accept') || '').includes('application/json');
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get((username || '').toString().trim());
+  const user = verifyCredentials(username, password);
 
-  if (!user || !bcrypt.compareSync((password || '').toString(), user.password_hash)) {
+  if (!user) {
     if (wantsJson) return res.status(401).json({ error: 'Incorrect username or password' });
     return res.redirect('/login.html?error=1');
   }
 
-  req.session.user = { id: user.id, username: user.username, display_name: user.display_name };
+  req.session.user = user;
   if (wantsJson) return res.json({ ok: true, user: req.session.user });
   res.redirect('/');
 });
@@ -417,6 +440,16 @@ app.get('/login.html', (req, res) => {
   res.sendFile(join(__dirname, 'public', 'login.html'));
 });
 app.use('/assets', express.static(join(__dirname, 'public'), { setHeaders: noCache }));
+
+// Service worker — must be served from the root so its scope covers the whole
+// app (a file under /assets would only control /assets). PWA install + cached
+// app shell for the shop floor; see public/sw.js.
+app.get('/sw.js', (req, res) => {
+  noCache(res);
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.sendFile(join(__dirname, 'public', 'sw.js'));
+});
 
 // The home page requires auth (redirects to sign-in if not logged in)
 app.get('/', requireAuth, (req, res) => {

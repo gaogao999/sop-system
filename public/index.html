@@ -133,10 +133,13 @@
         <span id="viewTitle" class="viewer-title"></span>
         <span class="viewer-actions">
           <a id="viewNewTab" class="btn-link" href="#" target="_blank" rel="noopener" data-i18n="openNew">↗ Open in new tab</a>
+          <button type="button" id="viewPrint" class="btn-link" data-i18n="print">🖨 Print</button>
           <a id="viewDownload" class="btn-link" href="#" data-i18n="download">⬇ Download</a>
           <button type="button" id="viewClose" class="ghost" data-i18n="close">✕ Close</button>
         </span>
       </div>
+      <!-- Controlled-copy stamp — only visible when printing (@media print) -->
+      <div id="printStamp" class="print-stamp" aria-hidden="true"></div>
       <p id="viewLoading" class="viewer-loading" hidden data-i18n="vLoading">Loading… if it stays blank, use “Open in new tab”.</p>
       <iframe id="viewFrame" class="viewer-frame" title="Document preview"></iframe>
       <p id="viewNotice" class="viewer-notice" hidden></p>

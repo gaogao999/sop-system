@@ -60,6 +60,7 @@ const I18N = {
     csvEmpty: 'Nothing to export.', csvImporting: 'Importing…',
     csvDone: (u, total) => `✓ Updated ${u} of ${total} row(s).`,
     csvFail: (e) => `Import failed: ${e}`,
+    printDate: 'Printed', printedBy: 'By',
   },
   th: {
     settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
@@ -117,6 +118,7 @@ const I18N = {
     csvEmpty: 'ไม่มีข้อมูลให้นำออก', csvImporting: 'กำลังนำเข้า…',
     csvDone: (u, total) => `✓ อัปเดต ${u} จาก ${total} แถว`,
     csvFail: (e) => `นำเข้าไม่สำเร็จ: ${e}`,
+    printDate: 'พิมพ์เมื่อ', printedBy: 'โดย',
   },
 };
 let LANG = localStorage.getItem('lang') === 'th' ? 'th' : 'en';
@@ -184,6 +186,8 @@ const state = {
   sort: { key: 'uploaded_at', dir: 'desc' }, // column sort
 };
 let lastFiles = []; // most recent server result, re-sorted on header click
+let currentDoc = null; // document open in the viewer (for the print stamp)
+let currentUser = ''; // display name of the signed-in user (for the print stamp)
 
 // --- Utilities -------------------------------------------------------------
 const fmtSize = (n) => {
@@ -324,6 +328,7 @@ function resetViewer() {
 }
 
 async function openView(id, name, pdf) {
+  currentDoc = lastFiles.find((f) => String(f.id) === String(id)) || null;
   const inlineUrl = `/api/files/${id}/download?inline=1`;
   $('#viewTitle').textContent = name || 'Document';
   $('#viewDownload').href = `/api/files/${id}/download`;
@@ -381,6 +386,26 @@ async function openView(id, name, pdf) {
 function closeView() {
   resetViewer();
   $('#viewDialog').close();
+}
+
+// Print the open document with an auto-stamped header (document no., revision,
+// document date, print date/time, printed-by) for ISO controlled-copy records.
+// The stamp is print-only (revealed by the @media print rules); the document
+// itself prints from the viewer iframe.
+function printDoc() {
+  const f = currentDoc || {};
+  const now = new Date();
+  $('#printStamp').innerHTML =
+    `<div class="ps-bar">` +
+    `<span class="ps-doc">${esc(f.doc_no || '')}</span>` +
+    `<span class="ps-rev">Rev. ${esc(f.revision || '-')}</span>` +
+    (f.doc_date ? `<span class="ps-date">${esc(f.doc_date)}</span>` : '') +
+    `</div>` +
+    `<div class="ps-title">${esc(f.title || $('#viewTitle').textContent || '')}</div>` +
+    `<div class="ps-meta">${t('printDate')}: ${fmtDateTime(now.toISOString())}` +
+    (currentUser ? ` · ${t('printedBy')}: ${esc(currentUser)}` : '') +
+    `</div>`;
+  window.print();
 }
 
 // Resolve a lookup item id by its name (case-insensitive); null if no match
@@ -851,6 +876,7 @@ function bindEvents() {
   $('#qrPrint').addEventListener('click', printQr);
 
   // In-app preview: close via button, Escape, or clicking the backdrop
+  $('#viewPrint').addEventListener('click', printDoc);
   $('#viewClose').addEventListener('click', closeView);
   $('#viewDialog').addEventListener('cancel', (e) => {
     e.preventDefault();
@@ -1201,7 +1227,8 @@ function bindEvents() {
 async function init() {
   try {
     const { user } = await api('/api/me');
-    $('#me').textContent = user.display_name || user.username;
+    currentUser = user.display_name || user.username;
+    $('#me').textContent = currentUser;
   } catch {
     return; // api() already redirected on 401
   }
@@ -1212,6 +1239,10 @@ async function init() {
       $('#appVer').textContent = `v${version}`;
     })
     .catch(() => {});
+  // Register the service worker (PWA install + cached app shell). Best-effort.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
   await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
   await loadFiles();
 }
