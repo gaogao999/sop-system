@@ -202,6 +202,63 @@ button, .btn-link {
   border-radius: 10px;
   font-size: 15px;
 }
+/* The search box is the hero — make it big and inviting */
+.searchbar input { font-size: 17px; padding: 13px 16px; }
+.searchbar input:focus { outline: 2px solid var(--primary); border-color: var(--primary); }
+
+/* ---- Home shelves (Favorites / Recent / Popular) ---- */
+.home { display: flex; flex-direction: column; gap: 22px; }
+.home[hidden] { display: none; } /* the hidden attr must win over display:flex */
+.shelf h2 { font-size: 15px; margin: 0 0 10px; }
+.card-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+}
+.shelf-empty { color: var(--muted); font-size: 14px; margin: 0; }
+.doc-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color .12s, box-shadow .12s, transform .12s;
+}
+.doc-card:hover { border-color: #c7d2fe; box-shadow: 0 6px 18px rgba(37,99,235,.10); transform: translateY(-1px); }
+.card-icon { font-size: 22px; }
+.card-doc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); }
+.card-title { font-weight: 600; font-size: 14px; line-height: 1.35; max-height: 3.7em; overflow: hidden; }
+.card-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* Favorite star (cards, table, viewer) */
+.fav-btn {
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 16px; line-height: 1; color: #cbd5e1;
+}
+.fav-btn:hover { color: #f59e0b; }
+.fav-btn.on { color: #f59e0b; }
+.doc-card .fav-btn { position: absolute; top: 10px; right: 12px; font-size: 18px; }
+#viewFav { font-size: 18px; }
+
+/* Full-text search snippet + highlight */
+.file-snippet { font-size: 12.5px; color: #475569; margin-top: 3px; line-height: 1.4; }
+mark { background: #fef08a; color: inherit; border-radius: 2px; padding: 0 1px; }
+
+/* ---- Manage menu ---- */
+dialog.admin { width: min(440px, 92vw); }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.admin-item {
+  text-align: left; padding: 14px 16px; border: 1px solid var(--line);
+  border-radius: 10px; background: #f8fafc; font: inherit; font-weight: 600; cursor: pointer;
+}
+.admin-item:hover { border-color: var(--primary); background: #eef2ff; }
+
 .list-info { color: var(--muted); font-size: 13px; margin: 0; }
 .list-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .show-old { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 5px; cursor: pointer; }

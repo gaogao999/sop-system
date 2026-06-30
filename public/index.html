@@ -24,8 +24,7 @@
       <div class="user-box">
         <span id="me"></span>
         <button id="langToggle" class="ghost" type="button">ไทย</button>
-        <button id="dashOpen" class="ghost" type="button" data-i18n="dashboard">📊 Dashboard</button>
-        <button id="settingsOpen" class="ghost" type="button" data-i18n="settings">⚙ Settings</button>
+        <button id="adminOpen" class="ghost" type="button" data-i18n="admin">⚙ Manage</button>
         <form method="post" action="/logout" class="inline">
           <button class="ghost" type="submit" data-i18n="signout">Sign out</button>
         </form>
@@ -81,17 +80,30 @@
       </aside>
 
       <main class="content">
-        <!-- Search bar -->
+        <!-- Search bar — the hero of the page -->
         <section class="searchbar">
-          <input type="search" id="search" data-i18n-ph="searchPh" placeholder="🔍 Search by product no, document no, title, product name or document content" />
+          <input type="search" id="search" data-i18n-ph="searchPh" placeholder="🔍 Search by product no, document no, title, product name or document content" autofocus />
           <button id="scanOpen" class="ghost" data-i18n="barcode">📷 Barcode</button>
-          <button id="bulkOpen" class="ghost" data-i18n="bulk">⧉ Bulk</button>
-          <button id="csvOpen" class="ghost" data-i18n="csv">⇅ CSV</button>
-          <button id="uploadOpen" class="primary" data-i18n="upload">+ Upload</button>
         </section>
 
-        <!-- File list -->
-        <section>
+        <!-- Home shelves: shown when not searching/filtering -->
+        <section id="home" class="home" hidden>
+          <div class="shelf">
+            <h2 data-i18n="homeFav">★ Favorites</h2>
+            <div id="homeFav" class="card-row"></div>
+          </div>
+          <div class="shelf">
+            <h2 data-i18n="homeRecent">🕘 Recently viewed</h2>
+            <div id="homeRecent" class="card-row"></div>
+          </div>
+          <div class="shelf">
+            <h2 data-i18n="homePopular">🔥 Most viewed</h2>
+            <div id="homePopular" class="card-row"></div>
+          </div>
+        </section>
+
+        <!-- Search / filter results -->
+        <section id="results" hidden>
           <div id="activeCode" class="active-code" hidden></div>
           <div class="list-head">
             <p id="listInfo" class="list-info"></p>
@@ -127,12 +139,29 @@
       </main>
     </div>
 
+    <!-- Manage menu: everything that isn't "finding a document" lives here -->
+    <dialog id="adminDialog" class="admin">
+      <div class="settings-head">
+        <h2 data-i18n="adminTitle">⚙ Manage</h2>
+        <button type="button" id="adminClose" class="ghost" data-i18n="close">Close</button>
+      </div>
+      <div class="admin-grid">
+        <button type="button" id="uploadOpen" class="admin-item" data-i18n="upload">+ Upload</button>
+        <button type="button" id="bulkOpen" class="admin-item" data-i18n="bulk">⧉ Bulk upload</button>
+        <button type="button" id="csvOpen" class="admin-item" data-i18n="csv">⇅ CSV</button>
+        <button type="button" id="dashOpen" class="admin-item" data-i18n="dashboard">📊 Dashboard</button>
+        <button type="button" id="settingsOpen" class="admin-item" data-i18n="settings">⚙ Settings</button>
+      </div>
+    </dialog>
+
     <!-- In-app document preview (view without downloading) -->
     <dialog id="viewDialog" class="viewer">
       <div class="viewer-head">
         <span id="viewTitle" class="viewer-title"></span>
         <span class="viewer-actions">
+          <button type="button" id="viewFav" class="btn-link" title="Favorite">☆</button>
           <a id="viewNewTab" class="btn-link" href="#" target="_blank" rel="noopener" data-i18n="openNew">↗ Open in new tab</a>
+          <button type="button" id="viewQr" class="btn-link" data-i18n="qrTitle">QR</button>
           <button type="button" id="viewPrint" class="btn-link" data-i18n="print">🖨 Print</button>
           <a id="viewDownload" class="btn-link" href="#" data-i18n="download">⬇ Download</a>
           <button type="button" id="viewClose" class="ghost" data-i18n="close">✕ Close</button>

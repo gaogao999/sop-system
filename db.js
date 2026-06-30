@@ -102,7 +102,18 @@ db.exec(`
     at       TEXT NOT NULL
   );
 
+  -- Per-user favourites (★) — the user's personal shelf of documents.
+  CREATE TABLE IF NOT EXISTS favorites (
+    username   TEXT NOT NULL,
+    file_id    INTEGER NOT NULL REFERENCES sop_files(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (username, file_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_fav_user       ON favorites(username);
   CREATE INDEX IF NOT EXISTS idx_log_at         ON access_log(at);
+  CREATE INDEX IF NOT EXISTS idx_log_file       ON access_log(file_id);
+  CREATE INDEX IF NOT EXISTS idx_log_user       ON access_log(username);
   CREATE INDEX IF NOT EXISTS idx_sop_doc_type   ON sop_files(doc_type_id);
   CREATE INDEX IF NOT EXISTS idx_sop_department ON sop_files(department_id);
   CREATE INDEX IF NOT EXISTS idx_sop_customer   ON sop_files(customer_id);

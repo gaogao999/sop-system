@@ -469,7 +469,11 @@ const CURRENT_REV = `
          OR (CAST(g.revision AS INTEGER) = CAST(f.revision AS INTEGER) AND g.id > f.id) )
   )`;
 
-const fileSelect = `
+// The shared column list. With { snippet:true } it also returns a ~160-char
+// excerpt of the PDF body around the search term (two leading ? params: the
+// LIKE pattern and the raw term) — used to show *where* a full-text hit is.
+function fileSelectSql({ snippet = false } = {}) {
+  return `
   SELECT f.id, f.title, f.description,
          f.doc_type_id, t.name AS doc_type_name,
          f.department_id, d.name AS department_name,
@@ -479,26 +483,46 @@ const fileSelect = `
          (${CURRENT_REV}) AS is_current,
          (SELECT COUNT(*) FROM sop_files g2 WHERE g2.doc_no = f.doc_no AND f.doc_no <> '') AS revision_count,
          f.original_name, f.mimetype, f.size, f.uploaded_at,
-         u.username AS uploaded_by_name
+         u.username AS uploaded_by_name${
+           snippet
+             ? `,
+         CASE WHEN f.pdf_text LIKE ?
+              THEN trim(substr(f.pdf_text, MAX(1, instr(lower(f.pdf_text), lower(?)) - 40), 180))
+              ELSE '' END AS snippet`
+             : `,
+         '' AS snippet`
+         }
   FROM sop_files f
   LEFT JOIN doc_types t ON t.id = f.doc_type_id
   LEFT JOIN departments d ON d.id = f.department_id
   LEFT JOIN customers cu ON cu.id = f.customer_id
   LEFT JOIN users u ON u.id = f.uploaded_by
 `;
+}
+const fileSelect = fileSelectSql();
+
+// Mark which rows the given user has starred (★). One query, then a Set lookup.
+function markFavorites(rows, username) {
+  if (!rows.length) return rows;
+  const favs = new Set(
+    db.prepare('SELECT file_id FROM favorites WHERE username = ?').all(username).map((r) => r.file_id)
+  );
+  for (const r of rows) r.favorited = favs.has(r.id) ? 1 : 0;
+  return rows;
+}
 
 // List + search (q: title/desc/doc no/product/file name; type/department/customer)
 app.get('/api/files', requireAuth, (req, res) => {
   const q = (req.query.q || '').toString().trim();
   const where = [];
-  const params = [];
+  const whereParams = [];
+  const like = `%${q}%`;
 
   if (q) {
     where.push(
       '(f.title LIKE ? OR f.description LIKE ? OR f.doc_no LIKE ? OR f.product_name LIKE ? OR f.product_no LIKE ? OR f.original_name LIKE ? OR f.pdf_text LIKE ?)'
     );
-    const like = `%${q}%`;
-    params.push(like, like, like, like, like, like, like);
+    whereParams.push(like, like, like, like, like, like, like);
   }
   // Each axis filters independently; 'all'/empty means no filter on that axis.
   // 'none' matches files with nothing assigned (used by the optional customer axis).
@@ -507,21 +531,21 @@ app.get('/api/files', requireAuth, (req, res) => {
       where.push(`f.${column} IS NULL`);
     } else if (value !== undefined && value !== '' && value !== 'all') {
       where.push(`f.${column} = ?`);
-      params.push(Number(value));
+      whereParams.push(Number(value));
     }
   };
   // Exact product-code (品番) filter — "show every document for this product"
   const code = (req.query.code || '').toString().trim();
   if (code) {
     where.push('f.id IN (SELECT file_id FROM product_codes WHERE code = ? COLLATE NOCASE)');
-    params.push(code);
+    whereParams.push(code);
   }
   // Per-column text filters (each a partial match over that column's fields)
   const colFilter = (value, columns) => {
     const v = (value || '').toString().trim();
     if (!v) return;
     where.push(`(${columns.map((c) => `${c} LIKE ?`).join(' OR ')})`);
-    columns.forEach(() => params.push(`%${v}%`));
+    columns.forEach(() => whereParams.push(`%${v}%`));
   };
   colFilter(req.query.docref, ['f.doc_no', 'f.revision', 'f.doc_date']);
   colFilter(req.query.title, ['f.title', 'f.product_name']);
@@ -534,8 +558,96 @@ app.get('/api/files', requireAuth, (req, res) => {
   // Show only the current revision unless explicitly asked for all revisions
   if (req.query.revisions !== 'all') where.push(CURRENT_REV);
 
-  const sql = `${fileSelect} ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY f.uploaded_at DESC`;
-  res.json(db.prepare(sql).all(...params));
+  // Relevance ranking when searching: doc-no exact > doc-no prefix > title >
+  // product / customer > body text. Falls back to newest-first within a tier.
+  // Params are bound in source order, so: SELECT(snippet) → WHERE → ORDER BY.
+  const selectParams = q ? [like, q] : [];
+  let orderBy = 'f.uploaded_at DESC';
+  const orderParams = [];
+  if (q) {
+    orderBy = `(CASE
+        WHEN f.doc_no = ? COLLATE NOCASE THEN 100
+        WHEN f.doc_no LIKE ? THEN 90
+        WHEN f.title LIKE ? THEN 80
+        WHEN f.product_no LIKE ? OR f.product_name LIKE ? THEN 60
+        WHEN cu.name LIKE ? THEN 50
+        ELSE 20 END) DESC, f.uploaded_at DESC`;
+    orderParams.push(q, `${q}%`, like, like, like, like);
+  }
+
+  const sql = `${fileSelectSql({ snippet: !!q })} ${
+    where.length ? 'WHERE ' + where.join(' AND ') : ''
+  } ORDER BY ${orderBy}`;
+  const rows = db.prepare(sql).all(...selectParams, ...whereParams, ...orderParams);
+  res.json(markFavorites(rows, req.session.user.username));
+});
+
+// --- Favourites (★) + home shelves -----------------------------------------
+// Toggle a document in the current user's favourites.
+app.post('/api/files/:id/favorite', requireAuth, (req, res) => {
+  const id = Number(req.params.id);
+  if (!db.prepare('SELECT id FROM sop_files WHERE id = ?').get(id)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+  const username = req.session.user.username;
+  const existing = db.prepare('SELECT 1 FROM favorites WHERE username = ? AND file_id = ?').get(username, id);
+  if (existing) {
+    db.prepare('DELETE FROM favorites WHERE username = ? AND file_id = ?').run(username, id);
+    return res.json({ favorited: false });
+  }
+  db.prepare('INSERT INTO favorites (username, file_id, created_at) VALUES (?, ?, ?)').run(
+    username,
+    id,
+    new Date().toISOString()
+  );
+  res.json({ favorited: true });
+});
+
+// Home shelves: the user's recently viewed, their favourites, and the most
+// opened documents in the last 60 days. Only current revisions, capped small.
+app.get('/api/home', requireAuth, (req, res) => {
+  const username = req.session.user.username;
+  const onlyCurrent = (rows) => markFavorites(rows.filter((r) => r.is_current), username);
+  const byIds = (ids) => {
+    if (!ids.length) return [];
+    const order = new Map(ids.map((id, i) => [id, i]));
+    const rows = db
+      .prepare(`${fileSelect} WHERE f.id IN (${ids.map(() => '?').join(',')})`)
+      .all(...ids);
+    rows.sort((a, b) => order.get(a.id) - order.get(b.id)); // preserve ranking order
+    return rows;
+  };
+
+  // Recently viewed by this user (distinct, newest first)
+  const recentIds = db
+    .prepare(
+      `SELECT file_id, MAX(at) AS last FROM access_log
+       WHERE username = ? AND action = 'view' AND file_id IS NOT NULL
+       GROUP BY file_id ORDER BY last DESC LIMIT 12`
+    )
+    .all(username)
+    .map((r) => r.file_id);
+
+  // Most opened recently (across everyone) — what the team relies on
+  const popularIds = db
+    .prepare(
+      `SELECT file_id, COUNT(*) AS n FROM access_log
+       WHERE action = 'view' AND file_id IS NOT NULL AND at >= ?
+       GROUP BY file_id ORDER BY n DESC LIMIT 12`
+    )
+    .all(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString())
+    .map((r) => r.file_id);
+
+  const favIds = db
+    .prepare('SELECT file_id FROM favorites WHERE username = ? ORDER BY created_at DESC LIMIT 24')
+    .all(username)
+    .map((r) => r.file_id);
+
+  res.json({
+    recent: onlyCurrent(byIds(recentIds)),
+    favorites: onlyCurrent(byIds(favIds)),
+    popular: onlyCurrent(byIds(popularIds)),
+  });
 });
 
 // Upload — both the document type and the department are required

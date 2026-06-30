@@ -61,6 +61,12 @@ const I18N = {
     csvDone: (u, total) => `✓ Updated ${u} of ${total} row(s).`,
     csvFail: (e) => `Import failed: ${e}`,
     printDate: 'Printed', printedBy: 'By',
+    admin: '⚙ Manage', adminTitle: '⚙ Manage',
+    homeFav: '★ Favorites', homeRecent: '🕘 Recently viewed', homePopular: '🔥 Most viewed (team)',
+    emptyFav: 'No favorites yet — open a document and tap ☆ to add it here.',
+    emptyRecent: 'Documents you open will appear here.',
+    emptyPopular: 'The most-opened documents will appear here.',
+    inText: 'in text', relevance: 'Best match',
   },
   th: {
     settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
@@ -119,6 +125,12 @@ const I18N = {
     csvDone: (u, total) => `✓ อัปเดต ${u} จาก ${total} แถว`,
     csvFail: (e) => `นำเข้าไม่สำเร็จ: ${e}`,
     printDate: 'พิมพ์เมื่อ', printedBy: 'โดย',
+    admin: '⚙ จัดการ', adminTitle: '⚙ จัดการ',
+    homeFav: '★ รายการโปรด', homeRecent: '🕘 เปิดล่าสุด', homePopular: '🔥 เปิดบ่อย (ทีม)',
+    emptyFav: 'ยังไม่มีรายการโปรด — เปิดเอกสารแล้วแตะ ☆ เพื่อเพิ่ม',
+    emptyRecent: 'เอกสารที่คุณเปิดจะแสดงที่นี่',
+    emptyPopular: 'เอกสารที่เปิดบ่อยจะแสดงที่นี่',
+    inText: 'ในเนื้อหา', relevance: 'ตรงที่สุด',
   },
 };
 let LANG = localStorage.getItem('lang') === 'th' ? 'th' : 'en';
@@ -147,6 +159,7 @@ function applyLang(lang) {
   }
   renderActiveCode();
   if (lastFiles.length || $('#fileRows').children.length) renderFiles(lastFiles);
+  if (!$('#home').hidden) renderHome();
   if ($('#settingsDialog').open) renderSettings();
 }
 // One descriptor per filter axis keeps the two lists (type / department) DRY.
@@ -217,6 +230,20 @@ const esc = (s) =>
 // Browsers can render PDFs inline; Office files (xls/doc) can't be previewed
 const isPdf = (f) =>
   f.mimetype === 'application/pdf' || /\.pdf$/i.test(f.original_name || '');
+
+// Escape text, then wrap occurrences of the search term in <mark> for highlight
+function highlight(text, term) {
+  const safe = esc(text);
+  const q = (term || '').trim();
+  if (!q) return safe;
+  const re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return safe.replace(re, '<mark>$1</mark>');
+}
+
+// Remember every document we've shown (results + home shelves) by id, so the
+// viewer can find its metadata (print stamp, ★ state) wherever it was opened.
+const docCache = {};
+const rememberDocs = (arr) => (arr || []).forEach((f) => (docCache[f.id] = f));
 
 // Parse the document's printed date (e.g. "18-Sep-25", "16-May-2025"); returns
 // a Date or null. Used to flag documents due for review (older than 2 years).
@@ -328,11 +355,12 @@ function resetViewer() {
 }
 
 async function openView(id, name, pdf) {
-  currentDoc = lastFiles.find((f) => String(f.id) === String(id)) || null;
+  currentDoc = docCache[id] || lastFiles.find((f) => String(f.id) === String(id)) || null;
   const inlineUrl = `/api/files/${id}/download?inline=1`;
   $('#viewTitle').textContent = name || 'Document';
   $('#viewDownload').href = `/api/files/${id}/download`;
   $('#viewNewTab').href = inlineUrl;
+  updateViewFav();
   const frame = $('#viewFrame');
   const notice = $('#viewNotice');
   const loading = $('#viewLoading');
@@ -406,6 +434,82 @@ function printDoc() {
     (currentUser ? ` · ${t('printedBy')}: ${esc(currentUser)}` : '') +
     `</div>`;
   window.print();
+}
+
+// --- Favorites (★) + home shelves -----------------------------------------
+function updateViewFav() {
+  const btn = $('#viewFav');
+  const on = !!(currentDoc && currentDoc.favorited);
+  btn.textContent = on ? '★' : '☆';
+  btn.classList.toggle('on', on);
+}
+
+const favInFlight = new Set(); // guard against a double-trigger toggling back
+async function toggleFavorite(id) {
+  if (favInFlight.has(String(id))) return;
+  favInFlight.add(String(id));
+  let r;
+  try {
+    r = await api(`/api/files/${id}/favorite`, { method: 'POST' });
+  } catch {
+    return;
+  } finally {
+    favInFlight.delete(String(id));
+  }
+  const on = !!r.favorited;
+  if (docCache[id]) docCache[id].favorited = on ? 1 : 0;
+  const hit = lastFiles.find((f) => String(f.id) === String(id));
+  if (hit) hit.favorited = on ? 1 : 0;
+  // Update every star button for this document that's currently on screen
+  document.querySelectorAll(`.fav-btn[data-id="${id}"]`).forEach((b) => {
+    b.classList.toggle('on', on);
+    b.textContent = on ? '★' : '☆';
+  });
+  if (currentDoc && String(currentDoc.id) === String(id)) updateViewFav();
+  if (!$('#home').hidden) renderHome(); // keep the Favorites shelf in sync
+}
+
+// A compact document card for the home shelves
+function cardHtml(f) {
+  return `<button class="doc-card" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">
+    <span class="fav-btn${f.favorited ? ' on' : ''}" data-id="${f.id}" role="button" title="★">${f.favorited ? '★' : '☆'}</span>
+    <span class="card-icon">${iconFor(f)}</span>
+    <span class="card-doc">${esc(f.doc_no || '·')}</span>
+    <span class="card-title">${esc(f.title)}</span>
+    <span class="card-meta">${esc(f.doc_type_name || '')}${f.department_name ? ' · ' + esc(f.department_name) : ''}</span>
+  </button>`;
+}
+function renderShelf(sel, files, emptyKey) {
+  rememberDocs(files);
+  const el = $(sel);
+  el.innerHTML =
+    files && files.length ? files.map(cardHtml).join('') : `<p class="shelf-empty">${t(emptyKey)}</p>`;
+}
+async function renderHome(seq = ++loadSeq) {
+  let data;
+  try {
+    data = await api('/api/home');
+  } catch {
+    return;
+  }
+  if (seq !== loadSeq) return; // a newer load started while we were fetching
+  renderShelf('#homeFav', data.favorites, 'emptyFav');
+  renderShelf('#homeRecent', data.recent, 'emptyRecent');
+  renderShelf('#homePopular', data.popular, 'emptyPopular');
+  $('#results').hidden = true;
+  $('#home').hidden = false;
+}
+
+// "Browsing" = nothing is being searched or filtered -> show the home shelves
+function isBrowsing() {
+  return (
+    !state.q &&
+    !state.code &&
+    !state.productNo &&
+    !state.showOld &&
+    !state.expiredOnly &&
+    Object.keys(AXES).every((k) => state[k].active === 'all')
+  );
 }
 
 // Resolve a lookup item id by its name (case-insensitive); null if no match
@@ -500,7 +604,14 @@ function printQr() {
 }
 
 // --- File list -------------------------------------------------------------
+let loadSeq = 0; // monotonic token so only the latest load updates the view
 async function loadFiles() {
+  const seq = ++loadSeq;
+  // No search and no filter -> show the home shelves instead of a full dump
+  if (isBrowsing()) {
+    await renderHome(seq);
+    return;
+  }
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
   if (state.code) params.set('code', state.code);
@@ -509,7 +620,12 @@ async function loadFiles() {
   for (const key of Object.keys(AXES)) {
     if (state[key].active !== 'all') params.set(AXES[key].queryKey, state[key].active);
   }
-  lastFiles = await api(`/api/files?${params.toString()}`);
+  const rows = await api(`/api/files?${params.toString()}`);
+  if (seq !== loadSeq) return; // a newer load superseded this one
+  lastFiles = rows;
+  rememberDocs(lastFiles);
+  $('#home').hidden = true;
+  $('#results').hidden = false;
   renderFiles(lastFiles);
 }
 
@@ -525,6 +641,7 @@ function sortBy(key) {
 
 function sortFiles(files) {
   const { key, dir } = state.sort;
+  if (key === 'relevance') return files; // server already ordered by best match
   const factor = dir === 'asc' ? 1 : -1;
   return [...files].sort((a, b) => {
     let x = a[key];
@@ -723,12 +840,13 @@ function renderFiles(files) {
     tbody.innerHTML = `<tr><td colspan="10" class="empty">${t('noFiles')}</td></tr>`;
     return;
   }
+  const q = state.q;
   tbody.innerHTML = files
     .map(
       (f) => `<tr class="${f.is_current ? '' : 'superseded'}">
         <td class="icon" title="${esc(f.doc_type_name || '')}">${iconFor(f)}</td>
         <td>
-          <div class="doc-no">${f.doc_no ? esc(f.doc_no) : '<span class="muted">-</span>'}</div>
+          <div class="doc-no">${f.doc_no ? highlight(f.doc_no, q) : '<span class="muted">-</span>'}</div>
           ${f.revision ? `<div class="file-orig">Rev.${esc(f.revision)}</div>` : ''}
           ${f.doc_date ? `<div class="file-orig">${esc(f.doc_date)}</div>` : ''}
           ${
@@ -741,9 +859,10 @@ function renderFiles(files) {
           ${isExpired(f) ? `<span class="rev-badge due">${t('badgeDue')}</span>` : ''}
         </td>
         <td>
-          <button class="file-title link-title view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">${esc(f.title)}</button>
-          ${f.product_name ? `<div class="file-desc">${t('productName')}: ${esc(f.product_name)}</div>` : ''}
+          <button class="file-title link-title view-file" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">${highlight(f.title, q)}</button>
+          ${f.product_name ? `<div class="file-desc">${t('productName')}: ${highlight(f.product_name, q)}</div>` : ''}
           ${codeChips(f)}
+          ${f.snippet ? `<div class="file-snippet">…${highlight(f.snippet, q)}… <span class="muted">(${t('inText')})</span></div>` : ''}
           ${f.description ? `<div class="file-desc">${esc(f.description)}</div>` : ''}
           <div class="file-orig">${esc(f.original_name)}</div>
         </td>
@@ -754,7 +873,7 @@ function renderFiles(files) {
         <td>${fmtDay(f.uploaded_at)}</td>
         <td>${esc(f.uploaded_by_name || '-')}</td>
         <td class="actions">
-          <button class="btn-link qr-file" data-code="${esc(f.doc_no || f.title)}" data-label="${esc([f.doc_no, f.title].filter(Boolean).join(' — '))}">QR</button>
+          <button class="btn-link fav-btn${f.favorited ? ' on' : ''}" data-id="${f.id}" title="★">${f.favorited ? '★' : '☆'}</button>
           <a class="btn-link" href="/api/files/${f.id}/download">${t('download')}</a>
           <button class="btn-link danger del-file" data-id="${f.id}">${t('del')}</button>
         </td>
@@ -824,12 +943,30 @@ function bindEvents() {
   bindAddForm('#departmentForm', '#newDepartment', 'department');
   bindAddForm('#customerForm', '#newCustomer', 'customer');
 
-  // Search (as you type)
+  // Search (as you type) — instant typeahead, ordered by best match
   let timer;
   $('#search').addEventListener('input', (e) => {
     clearTimeout(timer);
-    state.q = e.target.value;
-    timer = setTimeout(loadFiles, 250);
+    state.q = e.target.value.trim();
+    if (state.q) state.sort = { key: 'relevance', dir: 'desc' };
+    timer = setTimeout(loadFiles, 150);
+  });
+  // Enter in the search box opens the top (best-match) result. Defer the open
+  // to the next tick and preventDefault, so this same Enter keystroke doesn't
+  // "fall through" and activate the first button in the freshly-opened viewer.
+  $('#search').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const top = sortFiles(state.expiredOnly ? lastFiles.filter(isExpired) : lastFiles)[0];
+    if (top) setTimeout(() => openView(top.id, top.title, isPdf(top)), 0);
+  });
+  // Press "/" anywhere (outside a field) to jump to the search box
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    e.preventDefault();
+    $('#search').focus();
   });
 
   // Sidebar Product No. filter (partial match, debounced)
@@ -864,18 +1001,37 @@ function bindEvents() {
       setCodeFilter(chip.dataset.code);
       return;
     }
-    const qr = e.target.closest('.qr-file');
-    if (qr) {
-      openQr(qr.dataset.code, qr.dataset.label);
+    const fav = e.target.closest('.fav-btn');
+    if (fav) {
+      toggleFavorite(fav.dataset.id);
       return;
     }
     const view = e.target.closest('.view-file');
     if (view) openView(view.dataset.id, view.dataset.name, view.dataset.pdf === '1');
   });
+
+  // Home shelves: open a card, or toggle its ★
+  $('#home').addEventListener('click', (e) => {
+    const fav = e.target.closest('.fav-btn');
+    if (fav) {
+      e.stopPropagation();
+      toggleFavorite(fav.dataset.id);
+      return;
+    }
+    const card = e.target.closest('.doc-card');
+    if (card) openView(card.dataset.id, card.dataset.name, card.dataset.pdf === '1');
+  });
+
   $('#qrClose').addEventListener('click', () => $('#qrDialog').close());
   $('#qrPrint').addEventListener('click', printQr);
 
   // In-app preview: close via button, Escape, or clicking the backdrop
+  $('#viewFav').addEventListener('click', () => currentDoc && toggleFavorite(currentDoc.id));
+  $('#viewQr').addEventListener('click', () => {
+    if (!currentDoc) return;
+    const label = [currentDoc.doc_no, currentDoc.title].filter(Boolean).join(' — ');
+    openQr(currentDoc.doc_no || currentDoc.title, label);
+  });
   $('#viewPrint').addEventListener('click', printDoc);
   $('#viewClose').addEventListener('click', closeView);
   $('#viewDialog').addEventListener('cancel', (e) => {
@@ -1012,12 +1168,22 @@ function bindEvents() {
     $('#scanInput').focus();
   });
 
+  // --- Manage menu (holds everything that isn't "finding a document") -----
+  const adminDialog = $('#adminDialog');
+  const closeAdmin = () => adminDialog.close();
+  $('#adminOpen').addEventListener('click', () => adminDialog.showModal());
+  $('#adminClose').addEventListener('click', closeAdmin);
+
   // --- Dashboard ----------------------------------------------------------
-  $('#dashOpen').addEventListener('click', openDashboard);
+  $('#dashOpen').addEventListener('click', () => {
+    closeAdmin();
+    openDashboard();
+  });
   $('#dashClose').addEventListener('click', () => $('#dashDialog').close());
 
   // --- CSV export / import ------------------------------------------------
   $('#csvOpen').addEventListener('click', () => {
+    closeAdmin();
     $('#csvResults').innerHTML = '';
     $('#csvDialog').showModal();
   });
@@ -1032,6 +1198,7 @@ function bindEvents() {
   // --- Settings (manage Types / Departments / Customers) ------------------
   const settingsDialog = $('#settingsDialog');
   $('#settingsOpen').addEventListener('click', () => {
+    closeAdmin();
     renderSettings();
     renderLogs();
     settingsDialog.showModal();
@@ -1096,6 +1263,7 @@ function bindEvents() {
   // --- Bulk upload --------------------------------------------------------
   const bulkDialog = $('#bulkDialog');
   $('#bulkOpen').addEventListener('click', () => {
+    closeAdmin();
     $('#bulkResults').innerHTML = '';
     bulkDialog.showModal();
   });
@@ -1123,6 +1291,7 @@ function bindEvents() {
   // Upload modal
   const dialog = $('#uploadDialog');
   $('#uploadOpen').addEventListener('click', () => {
+    closeAdmin();
     $('#uploadForm').reset();
     $('#uploadError').hidden = true;
     $('#extractStatus').hidden = true;
