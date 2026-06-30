@@ -110,7 +110,36 @@ db.exec(`
     PRIMARY KEY (username, file_id)
   );
 
+  -- ISO document categories (QP-DC-01 5.1): the number-prefix system.
+  -- pattern uses tokens {dept} / {cust}; '#' is the zero-padded serial.
+  CREATE TABLE IF NOT EXISTS doc_categories (
+    code    TEXT PRIMARY KEY,   -- QM / EM / QP / EP / CP / WI / SOP / SOP(WI) / FD / SD / F
+    label   TEXT NOT NULL,
+    pattern TEXT NOT NULL,      -- e.g. 'QP-{dept}-#' , 'KGT-QM-#' , 'F{dept}-#'
+    width   INTEGER NOT NULL,   -- serial digits (2/3/4/5)
+    scope   TEXT NOT NULL,      -- 'dept' | 'cust' | 'none'
+    sort    INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Auto-incrementing serials, one counter per category+scope key (e.g. 'SOP-QC')
+  CREATE TABLE IF NOT EXISTS doc_sequences (
+    key TEXT PRIMARY KEY,
+    n   INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Distribution / receipt records (QP-DC-01 6.1.5-6.1.6)
+  CREATE TABLE IF NOT EXISTS distributions (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    file_id        INTEGER NOT NULL REFERENCES sop_files(id) ON DELETE CASCADE,
+    dept_code      TEXT NOT NULL,
+    distributed_at TEXT NOT NULL,
+    distributed_by TEXT NOT NULL DEFAULT '',
+    received       INTEGER NOT NULL DEFAULT 0,
+    received_at    TEXT NOT NULL DEFAULT ''
+  );
+
   CREATE INDEX IF NOT EXISTS idx_fav_user       ON favorites(username);
+  CREATE INDEX IF NOT EXISTS idx_dist_file        ON distributions(file_id);
   CREATE INDEX IF NOT EXISTS idx_log_at         ON access_log(at);
   CREATE INDEX IF NOT EXISTS idx_log_file       ON access_log(file_id);
   CREATE INDEX IF NOT EXISTS idx_log_user       ON access_log(username);
@@ -136,12 +165,28 @@ const newCols = {
   product_no: `TEXT NOT NULL DEFAULT ''`,
   pdf_text: `TEXT NOT NULL DEFAULT ''`,
   customer_id: `INTEGER REFERENCES customers(id)`,
+  // --- ISO document-control workflow (QP-DC-01) ---
+  // Existing uploads default to 'master' so they still appear as effective docs.
+  status: `TEXT NOT NULL DEFAULT 'master'`, // draft|pending_review|pending_approval|master|void|cancelled
+  category: `TEXT NOT NULL DEFAULT ''`,     // ISO prefix code (QP/SOP/…)
+  dept_code: `TEXT NOT NULL DEFAULT ''`,    // denormalised department code used in the number
+  effective_date: `TEXT NOT NULL DEFAULT ''`,
+  next_review_date: `TEXT NOT NULL DEFAULT ''`,
+  detail_of_revision: `TEXT NOT NULL DEFAULT ''`,
+  changed_pages: `TEXT NOT NULL DEFAULT ''`,
+  reviewer: `TEXT NOT NULL DEFAULT ''`,
+  approver: `TEXT NOT NULL DEFAULT ''`,
+  reject_comment: `TEXT NOT NULL DEFAULT ''`,
+  last_reviewed_at: `TEXT NOT NULL DEFAULT ''`,
+  last_reviewed_by: `TEXT NOT NULL DEFAULT ''`,
 };
 for (const [col, ddl] of Object.entries(newCols)) {
   if (!existingCols.has(col)) {
     db.exec(`ALTER TABLE sop_files ADD COLUMN ${col} ${ddl}`);
   }
 }
+// Index on status (the column is added by the migration above, so create it here)
+db.exec(`CREATE INDEX IF NOT EXISTS idx_sop_status ON sop_files(status)`);
 
 // --- Seed data -------------------------------------------------------------
 // Initial admin user (override via env vars; defaults to admin / admin123)
@@ -167,10 +212,32 @@ if (typeCount === 0) {
 const deptCount = db.prepare('SELECT COUNT(*) AS c FROM departments').get().c;
 if (deptCount === 0) {
   const insert = db.prepare('INSERT INTO departments (name) VALUES (?)');
+  // Department codes from QP-DC-01 Table 1
   [
-    'CD', 'CS', 'DC', 'EC', 'GA', 'HR', 'IT', 'MC', 'MI', 'MR',
-    'PC', 'PE', 'PQA', 'PU', 'QC', 'SCM', 'SL', 'SM', 'WH',
+    'MR', 'CD', 'DC', 'IT', 'HR', 'PQA', 'EC', 'PU', 'PE', 'PED',
+    'SL', 'CS', 'QC', 'WH', 'PC', 'SMT', 'MI',
   ].forEach((n) => insert.run(n));
+}
+
+// ISO document categories (QP-DC-01 5.1) — the number-prefix system
+const catCount = db.prepare('SELECT COUNT(*) AS c FROM doc_categories').get().c;
+if (catCount === 0) {
+  const ins = db.prepare(
+    'INSERT INTO doc_categories (code, label, pattern, width, scope, sort) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+  [
+    ['QM', 'Quality Manual', 'KGT-QM-#', 2, 'none'],
+    ['EM', 'Environmental Manual', 'KGT-EM-#', 2, 'none'],
+    ['QP', 'Quality Procedure', 'QP-{dept}-#', 2, 'dept'],
+    ['EP', 'Environmental Procedure', 'EP-{dept}-#', 2, 'dept'],
+    ['CP', 'Control Plan', 'CP-{dept}-#', 3, 'dept'],
+    ['WI', 'Work Instruction', 'WI-{dept}-#', 3, 'dept'],
+    ['SOP', 'Standard Operation Procedure', 'SOP-{dept}-#', 4, 'dept'],
+    ['SOP(WI)', 'SOP revised from WI', 'SOP(WI)-{dept}-#', 4, 'dept'],
+    ['FD', 'Feeder List Control', 'FD-{cust}-#', 4, 'cust'],
+    ['SD', 'Support Document', 'SD-{dept}-#', 3, 'dept'],
+    ['F', 'Form / Check Sheet', 'F{dept}-#', 3, 'dept'],
+  ].forEach((r, i) => ins.run(r[0], r[1], r[2], r[3], r[4], i));
 }
 
 // Initial customers (just TOTO to bootstrap; add the rest in the UI)

@@ -25,6 +25,13 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 - **Print with controlled-copy stamp** — the **🖨 Print** button in the viewer prints the document with an auto-stamped header (document no., revision, document date, print date/time and the user who printed it) via `@media print`; all app chrome is hidden so only the stamped document prints.
 - **PWA / installable** — web app manifest, icons and a service worker (cached app shell) so it can be added to a phone's home screen and loads reliably on the shop-floor LAN.
 - **Pluggable authentication** — sign-in goes through `POST /checklogin` (the same shape as the shared KGTH company login). `AUTH_MODE=local` (default) uses the built-in user table; the seam is ready to delegate to the company endpoint (`AUTH_MODE=upstream`) once its contract is confirmed.
+- **ISO document control (QP-DC-01 / QP-DC-02)** — a controlled-document workflow on top of the library:
+  - **Auto numbering** — pick a category (QM/EM/QP/EP/CP/WI/SOP/SOP(WI)/FD/SD/F) and a department/customer; the number is generated from the QP-DC-01 5.1 pattern (e.g. `SOP-QC-0001`, `KGT-QM-01`, `WI-EC-00001`) with a per-prefix auto-incrementing serial and 2-digit revisions (`00, 01…`).
+  - **DAR → approval workflow** — submit a Document Action Request, then `Draft → Pending Review → Pending Approval → MASTER DOCUMENT`. An approval queue lets approvers advance or reject (back to Draft with a comment). Effective date and next-review date (+1 year) are recorded on final approval.
+  - **Electronic control stamps** — PDFs are watermarked on the fly with `pdf-lib`: red **MASTER DOCUMENT** + effective date on page 1, blue **CONTROLLED PRINT** + destination department on every page of a distributed copy, red diagonal **VOID** on superseded revisions, and **UNCONTROLLED** for external copies. Stored files are never modified.
+  - **Revision history & VOID** — revising a master document issues the next revision and automatically marks the previous one **VOID** (kept one generation for traceability); the detail view shows the full revision table.
+  - **Master List** — the digital FDC-002: every controlled document with number, title, category, department, current revision, status, effective date and next-review date, filterable by department/category/status.
+  - **Distribution & receipt** — distribute a controlled print to a department and track receipt confirmation.
 - **File list, download and delete**
 
 ## Stack
@@ -36,6 +43,7 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
 | Auth | bcryptjs password hashing |
 | Upload | multer (validates extension + MIME type) |
 | PDF extraction / OCR | `pdftotext` + `pdftoppm` (poppler-utils) and `tesseract` (tesseract-ocr) — optional; bundled in the Docker image |
+| PDF watermarks | `pdf-lib` (ISO control stamps overlaid on download) |
 | Database | SQLite (better-sqlite3) |
 | UI | HTML / CSS / vanilla JS (no build step) |
 
@@ -117,8 +125,17 @@ See `.env.example` for a copy-paste starting point.
 | POST | `/api/files/import-csv` | Bulk-update document metadata from a CSV (multipart `file`). Rows matched by `id`; updates title / doc no / rev / date / model / 品名 / 品番, assigns a customer (created if new) and re-classifies Type / Department by name. Returns `{updated, total, errors}`. |
 | POST | `/api/files/:id/favorite` | Toggle the document in the current user's favourites. Returns `{favorited}`. |
 | GET | `/api/home` | Home shelves for the current user: `{recent, favorites, popular}` (current revisions only). |
+| GET | `/api/doc-categories` | ISO document categories (number prefixes). |
+| GET | `/api/next-number?category=&department_id=&customer_id=` | Preview the next auto-generated document number. |
+| POST | `/api/dar` | Submit a Document Action Request (multipart): creates a `pending_review` document with an auto number (rev 00). |
+| POST | `/api/files/:id/approve` \| `/reject` \| `/submit` | Advance / reject / resubmit a document in the approval workflow. |
+| POST | `/api/files/:id/revise` | Issue the next revision (multipart file); previous revision becomes VOID. |
+| POST | `/api/files/:id/distribute` · `/api/distributions/:id/receive` | Record a controlled-print distribution / confirm receipt. |
+| POST | `/api/files/:id/review` | Record an annual review; pushes the next-review date +1 year. |
+| GET | `/api/master-list` · `/api/pending` · `/api/distributions` | Master List (filterable) · approval queue · distribution log. |
+| GET | `/api/files/:id/revisions` | Revision history for a document. |
 | GET | `/api/lookup?code=` | Barcode lookup: exact match on the indexed 品番 / doc-number codes first, then a substring fallback across 品番 / doc number / product name / file name |
-| GET | `/api/files/:id/download` | Download (add `?inline=1` to view in the browser instead of downloading) |
+| GET | `/api/files/:id/download` | Download / inline view (`?inline=1`). PDFs are stamped on the fly by status: MASTER DOCUMENT, VOID, or — with `?distribute=DEPT` / `?uncontrolled=1` — CONTROLLED PRINT / UNCONTROLLED |
 | DELETE | `/api/files/:id` | Delete |
 | GET | `/healthz` | Health check |
 

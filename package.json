@@ -1,6 +1,6 @@
 {
   "name": "sop-system",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "description": "SOP (Standard Operating Procedure) file management system — upload, categorize, search and download",
   "type": "module",
   "main": "server.js",
@@ -18,6 +18,7 @@
     "better-sqlite3-session-store": "^0.1.0",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
-    "multer": "^2.0.1"
+    "multer": "^2.0.1",
+    "pdf-lib": "^1.17.1"
   }
 }

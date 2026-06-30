@@ -9,6 +9,7 @@ import { mkdirSync, existsSync, unlinkSync, createReadStream, readFileSync, read
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
 import db from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -479,6 +480,9 @@ function fileSelectSql({ snippet = false } = {}) {
          f.department_id, d.name AS department_name,
          f.customer_id, cu.name AS customer_name,
          f.doc_no, f.revision, f.doc_date, f.model, f.product_name, f.product_no,
+         f.status, f.category, f.dept_code, f.effective_date, f.next_review_date,
+         f.detail_of_revision, f.changed_pages, f.reviewer, f.approver, f.reject_comment,
+         f.last_reviewed_at, f.last_reviewed_by,
          (SELECT GROUP_CONCAT(pc.code, ' ') FROM product_codes pc WHERE pc.file_id = f.id) AS codes,
          (${CURRENT_REV}) AS is_current,
          (SELECT COUNT(*) FROM sop_files g2 WHERE g2.doc_no = f.doc_no AND f.doc_no <> '') AS revision_count,
@@ -510,6 +514,92 @@ function markFavorites(rows, username) {
   for (const r of rows) r.favorited = favs.has(r.id) ? 1 : 0;
   return rows;
 }
+
+// --- ISO document control (QP-DC-01) --------------------------------------
+// Number generation: build the next number for a category + department/customer.
+// Patterns use {dept}/{cust} tokens and '#' for the zero-padded serial.
+function buildNumber(category, deptCode, custCode, serial) {
+  let width = category.width;
+  // Special case: WI issued by EC uses a 5-digit serial (QP-DC-01 5.1)
+  if (category.code === 'WI' && deptCode === 'EC') width = 5;
+  return category.pattern
+    .replace('{dept}', deptCode || '')
+    .replace('{cust}', custCode || '')
+    .replace('#', String(serial).padStart(width, '0'));
+}
+function seqKey(categoryCode, scopeCode) {
+  return scopeCode ? `${categoryCode}-${scopeCode}` : categoryCode;
+}
+// Peek the next serial without consuming it (for the live preview in the form)
+function peekSerial(key) {
+  const row = db.prepare('SELECT n FROM doc_sequences WHERE key = ?').get(key);
+  return (row ? row.n : 0) + 1;
+}
+// Consume (increment) the serial and return the new value (used on create)
+const consumeSerial = db.transaction((key) => {
+  db.prepare(
+    `INSERT INTO doc_sequences (key, n) VALUES (?, 1)
+     ON CONFLICT(key) DO UPDATE SET n = n + 1`
+  ).run(key);
+  return db.prepare('SELECT n FROM doc_sequences WHERE key = ?').get(key).n;
+});
+
+// --- PDF watermark stamps (QP-DC-01 6.1.4-6.1.8) ---------------------------
+// Overlay text stamps on a PDF. Best-effort: if the PDF can't be parsed we
+// return the original bytes unchanged (the document still opens).
+const STAMP = {
+  master: { text: 'MASTER DOCUMENT', color: [0.8, 0, 0], allPages: false, diagonal: false },
+  controlled: { text: 'CONTROLLED PRINT', color: [0.1, 0.3, 0.85], allPages: true, diagonal: false },
+  void: { text: 'VOID', color: [0.85, 0, 0], allPages: true, diagonal: true },
+  uncontrolled: { text: 'UNCONTROLLED', color: [0.85, 0, 0], allPages: true, diagonal: true },
+};
+async function watermarkPdf(bytes, kind, note) {
+  const spec = STAMP[kind];
+  if (!spec) return bytes;
+  let pdf;
+  try {
+    pdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
+  } catch {
+    return bytes; // not a parseable PDF (e.g. a scan wrapper we can't open) — serve as-is
+  }
+  const font = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const color = rgb(...spec.color);
+  const pages = pdf.getPages();
+  pages.forEach((page, i) => {
+    if (!spec.allPages && i > 0) return;
+    const { width, height } = page.getSize();
+    if (spec.diagonal) {
+      // Big translucent diagonal stamp across the page (VOID / UNCONTROLLED)
+      const size = Math.min(width, height) / 5;
+      page.drawText(spec.text, {
+        x: width * 0.12,
+        y: height * 0.42,
+        size,
+        font,
+        color,
+        opacity: 0.28,
+        rotate: degrees(35),
+      });
+    } else {
+      // Header band stamp (MASTER DOCUMENT / CONTROLLED PRINT)
+      page.drawText(spec.text, { x: 36, y: height - 46, size: 20, font, color, opacity: 0.9 });
+      if (note) {
+        page.drawText(note, { x: 36, y: height - 64, size: 10, font, color, opacity: 0.9 });
+      }
+    }
+  });
+  return await pdf.save();
+}
+
+// Human-readable status label set sent to the client
+const STATUS = {
+  draft: 'Draft',
+  pending_review: 'Pending Review',
+  pending_approval: 'Pending Approval',
+  master: 'MASTER DOCUMENT',
+  void: 'VOID',
+  cancelled: 'Cancelled',
+};
 
 // List + search (q: title/desc/doc no/product/file name; type/department/customer)
 app.get('/api/files', requireAuth, (req, res) => {
@@ -739,6 +829,272 @@ app.post('/api/files', requireAuth, (req, res) => {
   });
 });
 
+// --- ISO document control: numbering, DAR, approval workflow ---------------
+// Ensure a doc_type row exists for an ISO category code, returning its id (the
+// sop_files.doc_type_id FK is required, and this keeps the Type axis in sync).
+function ensureDocType(name) {
+  const existing = db.prepare('SELECT id FROM doc_types WHERE name = ?').get(name);
+  if (existing) return existing.id;
+  return db.prepare('INSERT INTO doc_types (name) VALUES (?)').run(name).lastInsertRowid;
+}
+const addYear = (iso) => {
+  const d = new Date(iso);
+  d.setFullYear(d.getFullYear() + 1);
+  return d.toISOString();
+};
+const oneRow = (id) => db.prepare(`${fileSelect} WHERE f.id = ?`).get(id);
+
+// List the ISO categories (for the DAR form)
+app.get('/api/doc-categories', requireAuth, (req, res) => {
+  res.json(db.prepare('SELECT code, label, pattern, width, scope FROM doc_categories ORDER BY sort').all());
+});
+
+// Preview the next document number for a category + department/customer
+app.get('/api/next-number', requireAuth, (req, res) => {
+  const cat = db.prepare('SELECT * FROM doc_categories WHERE code = ?').get(req.query.category);
+  if (!cat) return res.status(400).json({ error: 'Unknown category' });
+  let scopeCode = '';
+  if (cat.scope === 'dept') {
+    const d = db.prepare('SELECT name FROM departments WHERE id = ?').get(Number(req.query.department_id));
+    scopeCode = d ? d.name : '';
+  } else if (cat.scope === 'cust') {
+    const c = db.prepare('SELECT name FROM customers WHERE id = ?').get(Number(req.query.customer_id));
+    scopeCode = c ? c.name : '';
+  }
+  if (cat.scope !== 'none' && !scopeCode) return res.json({ doc_no: '', revision: '00' });
+  const serial = peekSerial(seqKey(cat.code, scopeCode));
+  res.json({ doc_no: buildNumber(cat, scopeCode, scopeCode, serial), revision: '00' });
+});
+
+// Submit a DAR (Document Action Request): creates a new document in
+// "pending_review" with an auto-generated number (revision 00).
+app.post('/api/dar', requireAuth, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'Please attach a file' });
+    const cleanup = () => { try { unlinkSync(join(UPLOAD_DIR, req.file.filename)); } catch { /* ignore */ } };
+
+    const cat = db.prepare('SELECT * FROM doc_categories WHERE code = ?').get(req.body.category);
+    if (!cat) { cleanup(); return res.status(400).json({ error: 'Please choose a document category' }); }
+    const dept = db.prepare('SELECT * FROM departments WHERE id = ?').get(Number(req.body.department_id));
+    if (!dept) { cleanup(); return res.status(400).json({ error: 'Please choose a department' }); }
+    let customer = null;
+    if (req.body.customer_id) customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(Number(req.body.customer_id));
+    if (cat.scope === 'cust' && !customer) { cleanup(); return res.status(400).json({ error: 'This category needs a customer' }); }
+
+    const scopeCode = cat.scope === 'cust' ? customer.name : cat.scope === 'dept' ? dept.name : '';
+    const serial = consumeSerial(seqKey(cat.code, scopeCode));
+    const docNo = buildNumber(cat, scopeCode, scopeCode, serial);
+
+    const str = (v, n) => (v || '').toString().trim().slice(0, n);
+    const title = str(req.body.title, 200) || req.file.originalname;
+    const pdfText = extractFullText(join(UPLOAD_DIR, req.file.filename), req.file.mimetype);
+
+    const info = db
+      .prepare(
+        `INSERT INTO sop_files
+          (title, description, doc_type_id, department_id, customer_id, doc_no, revision, status,
+           category, dept_code, detail_of_revision, changed_pages, reviewer, approver,
+           pdf_text, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
+         VALUES (?, ?, ?, ?, ?, ?, '00', 'pending_review', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        title, str(req.body.description, 1000), ensureDocType(cat.code), dept.id,
+        customer ? customer.id : null, docNo, cat.code, dept.name,
+        str(req.body.detail_of_revision, 1000), str(req.body.changed_pages, 100),
+        str(req.body.reviewer, 100), str(req.body.approver, 100),
+        pdfText, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size,
+        req.session.user.id, new Date().toISOString()
+      );
+    setProductCodes(info.lastInsertRowid, '', docNo);
+    res.status(201).json(oneRow(info.lastInsertRowid));
+  });
+});
+
+// Approve the current stage: pending_review -> pending_approval -> master.
+// On reaching "master" the effective date (= approval time) and the next review
+// date (+1 year, QP-DC-01 6.1.3 / 6.2) are recorded.
+app.post('/api/files/:id/approve', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  const me = req.session.user.username;
+  if (row.status === 'pending_review') {
+    db.prepare('UPDATE sop_files SET status = ?, reviewer = ?, reject_comment = ? WHERE id = ?')
+      .run('pending_approval', me, '', row.id);
+  } else if (row.status === 'pending_approval') {
+    const now = new Date().toISOString();
+    db.prepare(
+      'UPDATE sop_files SET status = ?, approver = ?, effective_date = ?, next_review_date = ? WHERE id = ?'
+    ).run('master', me, now, addYear(now), row.id);
+  } else {
+    return res.status(400).json({ error: `Cannot approve a document that is "${row.status}"` });
+  }
+  res.json(oneRow(row.id));
+});
+
+// Reject -> back to Draft with a comment (QP-DC-01 6.1)
+app.post('/api/files/:id/reject', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  if (!['pending_review', 'pending_approval'].includes(row.status)) {
+    return res.status(400).json({ error: 'Only a pending document can be rejected' });
+  }
+  db.prepare('UPDATE sop_files SET status = ?, reject_comment = ? WHERE id = ?')
+    .run('draft', (req.body.comment || '').toString().slice(0, 500), row.id);
+  res.json(oneRow(row.id));
+});
+
+// Re-submit a draft for review
+app.post('/api/files/:id/submit', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  if (row.status !== 'draft') return res.status(400).json({ error: 'Only a draft can be submitted' });
+  db.prepare('UPDATE sop_files SET status = ?, reject_comment = ? WHERE id = ?').run('pending_review', '', row.id);
+  res.json(oneRow(row.id));
+});
+
+// Revise a master document: create the next revision (effective immediately in
+// this mock) and mark the previous revision VOID (QP-DC-01 5.1.9 / 6.1.8).
+app.post('/api/files/:id/revise', requireAuth, (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'Please attach the revised file' });
+    const cleanup = () => { try { unlinkSync(join(UPLOAD_DIR, req.file.filename)); } catch { /* ignore */ } };
+
+    const prev = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
+    if (!prev) { cleanup(); return res.status(404).json({ error: 'File not found' }); }
+    if (prev.status !== 'master') { cleanup(); return res.status(400).json({ error: 'Only a Master Document can be revised' }); }
+
+    const str = (v, n) => (v || '').toString().trim().slice(0, n);
+    const newRev = String(Number(prev.revision || '0') + 1).padStart(2, '0');
+    const pdfText = extractFullText(join(UPLOAD_DIR, req.file.filename), req.file.mimetype);
+    const now = new Date().toISOString();
+
+    const tx = db.transaction(() => {
+      const info = db
+        .prepare(
+          `INSERT INTO sop_files
+            (title, description, doc_type_id, department_id, customer_id, doc_no, revision, status,
+             category, dept_code, doc_date, model, product_name, product_no,
+             detail_of_revision, changed_pages, reviewer, approver, effective_date, next_review_date,
+             pdf_text, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'master', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(
+          str(req.body.title, 200) || prev.title, prev.description, prev.doc_type_id, prev.department_id,
+          prev.customer_id, prev.doc_no, newRev, prev.category, prev.dept_code, prev.doc_date,
+          prev.model, prev.product_name, prev.product_no,
+          str(req.body.detail_of_revision, 1000), str(req.body.changed_pages, 100),
+          req.session.user.username, req.session.user.username, now, addYear(now),
+          pdfText, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size,
+          req.session.user.id, now
+        );
+      // Supersede the previous revision (auto-VOID; kept 1 generation for trace)
+      db.prepare("UPDATE sop_files SET status = 'void' WHERE id = ?").run(prev.id);
+      setProductCodes(info.lastInsertRowid, prev.product_no, prev.doc_no);
+      return info.lastInsertRowid;
+    });
+    res.status(201).json(oneRow(tx()));
+  });
+});
+
+// Distribution (QP-DC-01 6.1.5): record a controlled-print distribution.
+app.post('/api/files/:id/distribute', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT id FROM sop_files WHERE id = ?').get(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  const dept = (req.body.dept_code || '').toString().trim().slice(0, 40);
+  if (!dept) return res.status(400).json({ error: 'Choose a destination department' });
+  const info = db
+    .prepare(
+      'INSERT INTO distributions (file_id, dept_code, distributed_at, distributed_by) VALUES (?, ?, ?, ?)'
+    )
+    .run(row.id, dept, new Date().toISOString(), req.session.user.username);
+  res.status(201).json({ id: info.lastInsertRowid, dept_code: dept });
+});
+
+// Confirm receipt of a distributed copy (QP-DC-01 6.1.6)
+app.post('/api/distributions/:id/receive', requireAuth, (req, res) => {
+  const d = db.prepare('SELECT id FROM distributions WHERE id = ?').get(Number(req.params.id));
+  if (!d) return res.status(404).json({ error: 'Distribution not found' });
+  db.prepare('UPDATE distributions SET received = 1, received_at = ? WHERE id = ?')
+    .run(new Date().toISOString(), d.id);
+  res.json({ ok: true });
+});
+
+// All distributions (the "notifications / receipt tracking" list)
+app.get('/api/distributions', requireAuth, (req, res) => {
+  res.json(
+    db
+      .prepare(
+        `SELECT dist.id, dist.dept_code, dist.distributed_at, dist.distributed_by, dist.received, dist.received_at,
+                f.id AS file_id, f.doc_no, f.revision, f.title
+         FROM distributions dist JOIN sop_files f ON f.id = dist.file_id
+         ORDER BY dist.distributed_at DESC LIMIT 100`
+      )
+      .all()
+  );
+});
+
+// Documents awaiting review/approval (the approval queue)
+app.get('/api/pending', requireAuth, (req, res) => {
+  res.json(
+    markFavorites(
+      db
+        .prepare(`${fileSelect} WHERE f.status IN ('pending_review','pending_approval','draft') ORDER BY f.uploaded_at DESC`)
+        .all(),
+      req.session.user.username
+    )
+  );
+});
+
+// Master List (QP-DC-01 4.1 / 8.2): current revision of every controlled
+// document, with status, effective date and next review date.
+app.get('/api/master-list', requireAuth, (req, res) => {
+  const where = [`f.status <> 'cancelled'`];
+  const params = [];
+  if (req.query.department) { where.push('f.department_id = ?'); params.push(Number(req.query.department)); }
+  if (req.query.category) { where.push('f.category = ?'); params.push(req.query.category); }
+  if (req.query.status) { where.push('f.status = ?'); params.push(req.query.status); }
+  // current revision, OR any non-master revision (so VOID old versions still show)
+  where.push(`(${CURRENT_REV} OR f.status <> 'master')`);
+  const sql = `${fileSelect} WHERE ${where.join(' AND ')} ORDER BY f.doc_no, CAST(f.revision AS INTEGER) DESC`;
+  res.json(markFavorites(db.prepare(sql).all(...params), req.session.user.username));
+});
+
+// Revision history for a document (all revisions sharing its number)
+app.get('/api/files/:id/revisions', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT doc_no FROM sop_files WHERE id = ?').get(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  if (!row.doc_no) return res.json([]);
+  res.json(
+    db
+      .prepare(
+        `SELECT id, revision, status, changed_pages, detail_of_revision, effective_date, uploaded_at, approver
+         FROM sop_files WHERE doc_no = ? ORDER BY CAST(revision AS INTEGER) DESC`
+      )
+      .all(row.doc_no)
+  );
+});
+
+// Distributions for one document (shown in its detail view)
+app.get('/api/files/:id/distributions', requireAuth, (req, res) => {
+  res.json(
+    db
+      .prepare('SELECT id, dept_code, distributed_at, received, received_at FROM distributions WHERE file_id = ? ORDER BY distributed_at DESC')
+      .all(Number(req.params.id))
+  );
+});
+
+// Record an annual review (QP-DC-01 6.2): stamp reviewer + date, push next review +1y
+app.post('/api/files/:id/review', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  const now = new Date().toISOString();
+  db.prepare('UPDATE sop_files SET last_reviewed_at = ?, last_reviewed_by = ?, next_review_date = ? WHERE id = ?')
+    .run(now, req.session.user.username, addYear(now), row.id);
+  res.json(oneRow(row.id));
+});
+
 // --- CSV import (bulk metadata update) -------------------------------------
 // Parse CSV text into an array of objects keyed by the (lower-cased) header row.
 // Handles quoted fields, escaped quotes ("") and commas/newlines inside quotes.
@@ -856,9 +1212,14 @@ app.post('/api/files/import-csv', requireAuth, (req, res) => {
   });
 });
 
-// Download (or inline view with ?inline=1 — used by the barcode lookup so the
-// inspection spec opens straight in the browser instead of downloading)
-app.get('/api/files/:id/download', requireAuth, (req, res) => {
+// Download (or inline view with ?inline=1). PDFs get the ISO control stamp
+// overlaid on the fly based on the document's status (and the distribute /
+// uncontrolled query flags), so stored files are never mutated.
+//   ?distribute=DEPT  -> blue CONTROLLED PRINT (all pages) + "Distributed to: DEPT"
+//   ?uncontrolled=1   -> red UNCONTROLLED (for external sharing, QP-DC-01 6.8)
+//   status master     -> red MASTER DOCUMENT (page 1) + effective date
+//   status void       -> red VOID (all pages)
+app.get('/api/files/:id/download', requireAuth, async (req, res) => {
   const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
   if (!row) return res.status(404).json({ error: 'File not found' });
   const path = join(UPLOAD_DIR, row.stored_name);
@@ -871,6 +1232,31 @@ app.get('/api/files/:id/download', requireAuth, (req, res) => {
     'Content-Disposition',
     `${disposition}; filename*=UTF-8''${encodeURIComponent(row.original_name)}`
   );
+
+  // Decide which control stamp (if any) applies. Only PDFs are stamped.
+  const isPdf = (row.mimetype || '').includes('pdf') || /\.pdf$/i.test(row.original_name || '');
+  let kind = null;
+  let note = '';
+  if (req.query.uncontrolled) {
+    kind = 'uncontrolled';
+  } else if (req.query.distribute) {
+    kind = 'controlled';
+    note = `Distributed to: ${String(req.query.distribute).slice(0, 40)}`;
+  } else if (row.status === 'void') {
+    kind = 'void';
+  } else if (row.status === 'master') {
+    kind = 'master';
+    note = row.effective_date ? `Effective: ${row.effective_date.slice(0, 10)}` : '';
+  }
+
+  if (isPdf && kind) {
+    try {
+      const stamped = await watermarkPdf(readFileSync(path), kind, note);
+      return res.end(Buffer.from(stamped));
+    } catch {
+      /* fall through to the unstamped original */
+    }
+  }
   createReadStream(path).pipe(res);
 });
 

@@ -67,6 +67,24 @@ const I18N = {
     emptyRecent: 'Documents you open will appear here.',
     emptyPopular: 'The most-opened documents will appear here.',
     inText: 'in text', relevance: 'Best match',
+    // ISO document control
+    dar: '📝 New document (DAR)', darTitle: '📝 New document (DAR)',
+    darHint: 'Submit a Document Action Request. The number is generated automatically; the document starts in Pending Review.',
+    darCategory: 'Category', darNumber: 'Document No.', darDetail: 'Detail of revision', darSubmit: 'Submit DAR',
+    approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
+    approvalsHint: 'Documents awaiting review or approval. Approving advances the stage; the final approval makes it the effective MASTER DOCUMENT.',
+    masterList: '📋 Master List', masterTitle: '📋 Master List',
+    mlStatusCol: 'Status', mlEffective: 'Effective', mlReview: 'Next review',
+    distributions: '📦 Distributions', distTitle: '📦 Distributions',
+    distHint: 'Controlled-print distributions. The receiving department confirms receipt here.',
+    stDraft: 'Draft', stPendingReview: 'Pending Review', stPendingApproval: 'Pending Approval',
+    stMaster: 'MASTER DOCUMENT', stVoid: 'VOID', stCancelled: 'Cancelled',
+    approve: 'Approve', reject: 'Reject', submitDoc: 'Submit for review',
+    distribute: 'Distribute', revise: 'Revise', annualReview: 'Record review', receive: 'Confirm receipt',
+    received: 'Received', notReceived: 'Awaiting receipt', rejectPrompt: 'Reason for rejection (optional):',
+    reviseFile: 'Choose revised file…', revHistory: 'Revision history', effLabel: 'Effective', revwLabel: 'Next review',
+    distTo: 'Distribute to…', noApprovals: 'Nothing awaiting approval.', noDist: 'No distributions yet.',
+    queueAll: 'All', emptyMaster: 'No documents yet.', darDistedTo: 'Distributed to',
   },
   th: {
     settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
@@ -131,6 +149,24 @@ const I18N = {
     emptyRecent: 'เอกสารที่คุณเปิดจะแสดงที่นี่',
     emptyPopular: 'เอกสารที่เปิดบ่อยจะแสดงที่นี่',
     inText: 'ในเนื้อหา', relevance: 'ตรงที่สุด',
+    // ISO document control
+    dar: '📝 เอกสารใหม่ (DAR)', darTitle: '📝 เอกสารใหม่ (DAR)',
+    darHint: 'ส่งคำขอจัดทำเอกสาร (DAR) ระบบจะออกเลขให้อัตโนมัติ และเริ่มที่สถานะรอตรวจสอบ',
+    darCategory: 'ประเภทเอกสาร', darNumber: 'เลขเอกสาร', darDetail: 'รายละเอียดการแก้ไข', darSubmit: 'ส่ง DAR',
+    approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
+    approvalsHint: 'เอกสารที่รอตรวจสอบ/อนุมัติ การอนุมัติจะเลื่อนขั้น และการอนุมัติขั้นสุดท้ายจะทำให้เป็น MASTER DOCUMENT',
+    masterList: '📋 Master List', masterTitle: '📋 Master List',
+    mlStatusCol: 'สถานะ', mlEffective: 'วันที่มีผล', mlReview: 'ทบทวนครั้งถัดไป',
+    distributions: '📦 การแจกจ่าย', distTitle: '📦 การแจกจ่าย',
+    distHint: 'การแจกจ่ายสำเนาควบคุม แผนกผู้รับยืนยันการรับที่นี่',
+    stDraft: 'ฉบับร่าง', stPendingReview: 'รอตรวจสอบ', stPendingApproval: 'รออนุมัติ',
+    stMaster: 'MASTER DOCUMENT', stVoid: 'VOID', stCancelled: 'ยกเลิก',
+    approve: 'อนุมัติ', reject: 'ตีกลับ', submitDoc: 'ส่งตรวจสอบ',
+    distribute: 'แจกจ่าย', revise: 'แก้ไขฉบับ', annualReview: 'บันทึกการทบทวน', receive: 'ยืนยันการรับ',
+    received: 'รับแล้ว', notReceived: 'รอการรับ', rejectPrompt: 'เหตุผลที่ตีกลับ (ไม่บังคับ):',
+    reviseFile: 'เลือกไฟล์ฉบับแก้ไข…', revHistory: 'ประวัติการแก้ไข', effLabel: 'วันที่มีผล', revwLabel: 'ทบทวนครั้งถัดไป',
+    distTo: 'แจกจ่ายไปยัง…', noApprovals: 'ไม่มีรายการรออนุมัติ', noDist: 'ยังไม่มีการแจกจ่าย',
+    queueAll: 'ทั้งหมด', emptyMaster: 'ยังไม่มีเอกสาร', darDistedTo: 'แจกจ่ายไปยัง',
   },
 };
 let LANG = localStorage.getItem('lang') === 'th' ? 'th' : 'en';
@@ -361,6 +397,7 @@ async function openView(id, name, pdf) {
   $('#viewDownload').href = `/api/files/${id}/download`;
   $('#viewNewTab').href = inlineUrl;
   updateViewFav();
+  showIsoPanel(currentDoc);
   const frame = $('#viewFrame');
   const notice = $('#viewNotice');
   const loading = $('#viewLoading');
@@ -414,6 +451,9 @@ async function openView(id, name, pdf) {
 function closeView() {
   resetViewer();
   $('#viewDialog').close();
+  // Refresh any workflow list left open underneath (status may have changed)
+  if ($('#masterDialog').open) renderMaster();
+  if ($('#approvalsDialog').open) renderApprovals();
 }
 
 // Print the open document with an auto-stamped header (document no., revision,
@@ -768,6 +808,276 @@ async function importCsv(file) {
   } catch (err) {
     out.innerHTML = `<li class="muted">${esc(t('csvFail', err.message))}</li>`;
   }
+}
+
+// --- ISO document control (DAR / approvals / Master List / distribution) ---
+let docCategories = [];
+async function loadDocCategories() {
+  try {
+    docCategories = await api('/api/doc-categories');
+  } catch {
+    docCategories = [];
+  }
+}
+const STATUS_KEY = {
+  draft: 'stDraft', pending_review: 'stPendingReview', pending_approval: 'stPendingApproval',
+  master: 'stMaster', void: 'stVoid', cancelled: 'stCancelled',
+};
+function statusBadge(status) {
+  const key = STATUS_KEY[status] || 'stMaster';
+  return `<span class="status-badge st-${status || 'master'}">${t(key)}</span>`;
+}
+const dateOnly = (iso) => (iso ? String(iso).slice(0, 10) : '—');
+
+// Generic ISO action: POST and return JSON (or null on failure)
+async function isoAction(path, body, isForm) {
+  const opts = { method: 'POST' };
+  if (isForm) opts.body = body;
+  else if (body) {
+    opts.headers = { 'Content-Type': 'application/json' };
+    opts.body = JSON.stringify(body);
+  }
+  return api(path, opts);
+}
+
+// ---- DAR form ----
+function fillSelect(sel, items, valueKey, labelKey, placeholder) {
+  sel.innerHTML =
+    (placeholder ? `<option value="">${esc(placeholder)}</option>` : '') +
+    items.map((i) => `<option value="${i[valueKey]}">${esc(i[labelKey])}</option>`).join('');
+}
+async function updateDarNumber() {
+  const code = $('#darCategory').value;
+  const cat = docCategories.find((c) => c.code === code);
+  if (!cat) return;
+  $('#darCustWrap').hidden = cat.scope !== 'cust';
+  const params = new URLSearchParams({ category: code });
+  if (cat.scope === 'dept') params.set('department_id', $('#darDept').value);
+  if (cat.scope === 'cust') params.set('customer_id', $('#darCust').value);
+  try {
+    const r = await api(`/api/next-number?${params}`);
+    $('#darNumber').textContent = r.doc_no || '—';
+  } catch {
+    $('#darNumber').textContent = '—';
+  }
+}
+function openDAR() {
+  $('#darForm').reset();
+  $('#darError').hidden = true;
+  fillSelect($('#darCategory'), docCategories, 'code', 'code', '');
+  // show the label next to code
+  $('#darCategory').innerHTML = docCategories
+    .map((c) => `<option value="${c.code}">${esc(c.code)} — ${esc(c.label)}</option>`)
+    .join('');
+  fillSelect($('#darDept'), state.department.items, 'id', 'name', '');
+  fillSelect($('#darCust'), state.customer.items, 'id', 'name', t('selectDots'));
+  updateDarNumber();
+  $('#darDialog').showModal();
+}
+async function submitDAR(e) {
+  e.preventDefault();
+  const file = $('#darFile').files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('category', $('#darCategory').value);
+  fd.append('department_id', $('#darDept').value);
+  if (!$('#darCustWrap').hidden) fd.append('customer_id', $('#darCust').value);
+  fd.append('title', $('#darTitleInput').value);
+  fd.append('detail_of_revision', $('#darDetail').value);
+  try {
+    await isoAction('/api/dar', fd, true);
+    $('#darDialog').close();
+    openApprovals(); // jump straight to the queue so the demo can approve it
+  } catch (err) {
+    const el = $('#darError');
+    el.textContent = err.message;
+    el.hidden = false;
+  }
+}
+
+// ---- Approval queue ----
+async function openApprovals() {
+  $('#approvalsDialog').showModal();
+  renderApprovals();
+}
+async function renderApprovals() {
+  const list = $('#approvalsList');
+  let docs = [];
+  try {
+    docs = await api('/api/pending');
+  } catch {
+    /* ignore */
+  }
+  list.innerHTML = docs.length
+    ? docs
+        .map(
+          (f) => `<li class="queue-item" data-id="${f.id}">
+            <div class="queue-main">
+              <span class="doc-no">${esc(f.doc_no || '-')}</span> ${statusBadge(f.status)}
+              <div>${esc(f.title)}</div>
+              ${f.detail_of_revision ? `<div class="muted">${esc(f.detail_of_revision)}</div>` : ''}
+              ${f.reject_comment ? `<div class="reject-note">⤺ ${esc(f.reject_comment)}</div>` : ''}
+            </div>
+            <div class="queue-actions">
+              <button class="btn-link view-doc" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">👁</button>
+              ${f.status === 'draft'
+                ? `<button class="primary q-submit" data-id="${f.id}">${t('submitDoc')}</button>`
+                : `<button class="primary q-approve" data-id="${f.id}">${t('approve')}</button>
+                   <button class="ghost q-reject" data-id="${f.id}">${t('reject')}</button>`}
+            </div>
+          </li>`
+        )
+        .join('')
+    : `<li class="muted">${t('noApprovals')}</li>`;
+}
+
+// ---- Master List ----
+async function openMaster() {
+  fillSelect($('#mlDept'), state.department.items, 'id', 'name', t('queueAll'));
+  $('#mlCategory').innerHTML =
+    `<option value="">${t('queueAll')}</option>` +
+    docCategories.map((c) => `<option value="${c.code}">${esc(c.code)}</option>`).join('');
+  $('#mlStatus').innerHTML =
+    `<option value="">${t('queueAll')}</option>` +
+    ['draft', 'pending_review', 'pending_approval', 'master', 'void']
+      .map((s) => `<option value="${s}">${t(STATUS_KEY[s])}</option>`)
+      .join('');
+  $('#masterDialog').showModal();
+  renderMaster();
+}
+async function renderMaster() {
+  const params = new URLSearchParams();
+  if ($('#mlDept').value) params.set('department', $('#mlDept').value);
+  if ($('#mlCategory').value) params.set('category', $('#mlCategory').value);
+  if ($('#mlStatus').value) params.set('status', $('#mlStatus').value);
+  let docs = [];
+  try {
+    docs = await api(`/api/master-list?${params}`);
+  } catch {
+    /* ignore */
+  }
+  rememberDocs(docs);
+  $('#masterRows').innerHTML = docs.length
+    ? docs
+        .map(
+          (f) => `<tr class="master-row" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">
+            <td class="doc-no">${esc(f.doc_no || '-')}</td>
+            <td>${esc(f.title)}</td>
+            <td>${esc(f.category || f.doc_type_name || '')}</td>
+            <td>${esc(f.dept_code || f.department_name || '')}</td>
+            <td>${esc(f.revision || '')}</td>
+            <td>${statusBadge(f.status)}</td>
+            <td>${dateOnly(f.effective_date)}</td>
+            <td>${dateOnly(f.next_review_date)}</td>
+          </tr>`
+        )
+        .join('')
+    : `<tr><td colspan="8" class="empty">${t('emptyMaster')}</td></tr>`;
+}
+
+// ---- Distributions ----
+async function openDist() {
+  $('#distDialog').showModal();
+  renderDist();
+}
+async function renderDist() {
+  let rows = [];
+  try {
+    rows = await api('/api/distributions');
+  } catch {
+    /* ignore */
+  }
+  $('#distList').innerHTML = rows.length
+    ? rows
+        .map(
+          (d) => `<li class="queue-item" data-id="${d.id}">
+            <div class="queue-main">
+              <span class="doc-no">${esc(d.doc_no || '-')}</span> Rev.${esc(d.revision)}
+              → <strong>${esc(d.dept_code)}</strong>
+              <div class="muted">${esc(d.title)} · ${dateOnly(d.distributed_at)}</div>
+            </div>
+            <div class="queue-actions">
+              ${d.received
+                ? `<span class="status-badge st-master">✓ ${t('received')}</span>`
+                : `<button class="primary d-receive" data-id="${d.id}">${t('receive')}</button>`}
+            </div>
+          </li>`
+        )
+        .join('')
+    : `<li class="muted">${t('noDist')}</li>`;
+}
+
+// ---- Viewer ISO panel (status, dates, actions, revision history) ----
+function showIsoPanel(doc) {
+  const panel = $('#viewIso');
+  const workflow = doc && (doc.category || (doc.status && doc.status !== 'master'));
+  if (!workflow) {
+    panel.hidden = true;
+    panel.innerHTML = '';
+    return;
+  }
+  const s = doc.status;
+  let actions = '';
+  if (s === 'pending_review' || s === 'pending_approval') {
+    actions = `<button class="primary iso-approve">${t('approve')}</button>
+               <button class="ghost iso-reject">${t('reject')}</button>`;
+  } else if (s === 'draft') {
+    actions = `<button class="primary iso-submit">${t('submitDoc')}</button>`;
+  } else if (s === 'master') {
+    const opts = state.department.items.map((d) => `<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('');
+    actions = `<select class="iso-dept">${opts}</select>
+               <button class="primary iso-distribute">${t('distribute')}</button>
+               <button class="ghost iso-revise">${t('revise')}</button>
+               <button class="ghost iso-review">${t('annualReview')}</button>`;
+  }
+  panel.hidden = false;
+  panel.innerHTML = `
+    <div class="iso-row">
+      ${statusBadge(s)}
+      <span class="iso-meta">${esc(doc.doc_no || '')} · Rev ${esc(doc.revision || '00')}</span>
+      ${doc.effective_date ? `<span class="iso-meta">${t('effLabel')}: ${dateOnly(doc.effective_date)}</span>` : ''}
+      ${doc.next_review_date ? `<span class="iso-meta">${t('revwLabel')}: ${dateOnly(doc.next_review_date)}</span>` : ''}
+    </div>
+    <div class="iso-actions">${actions}</div>
+    <div id="viewRevs" class="iso-revs"></div>
+    <input type="file" id="reviseInput" accept=".pdf,.xls,.xlsx,.doc,.docx" hidden />`;
+  loadRevisions(doc.id);
+}
+async function loadRevisions(id) {
+  let revs = [];
+  try {
+    revs = await api(`/api/files/${id}/revisions`);
+  } catch {
+    return;
+  }
+  if (revs.length <= 1) return;
+  $('#viewRevs').innerHTML =
+    `<div class="iso-revs-title">${t('revHistory')}</div>` +
+    `<table class="rev-table"><tbody>` +
+    revs
+      .map(
+        (r) => `<tr>
+          <td>Rev ${esc(r.revision)}</td>
+          <td>${statusBadge(r.status)}</td>
+          <td>${esc(r.changed_pages || '')}</td>
+          <td>${esc(r.detail_of_revision || '')}</td>
+          <td>${dateOnly(r.effective_date || r.uploaded_at)}</td>
+        </tr>`
+      )
+      .join('') +
+    `</tbody></table>`;
+}
+// Re-open the viewer for a (possibly updated) document id, refreshing its row
+async function refreshAndView(id) {
+  try {
+    const rows = await api(`/api/files?revisions=all`);
+    rememberDocs(rows);
+  } catch {
+    /* ignore */
+  }
+  const doc = docCache[id];
+  if (doc) openView(doc.id, doc.title, isPdf(doc));
 }
 
 // --- Settings (manage Types / Departments / Customers) ---------------------
@@ -1174,6 +1484,104 @@ function bindEvents() {
   $('#adminOpen').addEventListener('click', () => adminDialog.showModal());
   $('#adminClose').addEventListener('click', closeAdmin);
 
+  // --- ISO document control -----------------------------------------------
+  $('#darOpen').addEventListener('click', () => { closeAdmin(); openDAR(); });
+  $('#approvalsOpen').addEventListener('click', () => { closeAdmin(); openApprovals(); });
+  $('#masterOpen').addEventListener('click', () => { closeAdmin(); openMaster(); });
+  $('#distOpen').addEventListener('click', () => { closeAdmin(); openDist(); });
+
+  // DAR form
+  $('#darCancel').addEventListener('click', () => $('#darDialog').close());
+  $('#darForm').addEventListener('submit', submitDAR);
+  ['#darCategory', '#darDept', '#darCust'].forEach((sel) =>
+    $(sel).addEventListener('change', updateDarNumber)
+  );
+
+  // Approval queue (delegated)
+  $('#approvalsClose').addEventListener('click', () => $('#approvalsDialog').close());
+  $('#approvalsList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (btn.classList.contains('view-doc')) {
+      openView(id, btn.dataset.name, btn.dataset.pdf === '1');
+    } else if (btn.classList.contains('q-approve')) {
+      await isoAction(`/api/files/${id}/approve`);
+      renderApprovals();
+    } else if (btn.classList.contains('q-submit')) {
+      await isoAction(`/api/files/${id}/submit`);
+      renderApprovals();
+    } else if (btn.classList.contains('q-reject')) {
+      const comment = prompt(t('rejectPrompt'), '');
+      if (comment === null) return;
+      await isoAction(`/api/files/${id}/reject`, { comment });
+      renderApprovals();
+    }
+  });
+
+  // Master List
+  $('#masterClose').addEventListener('click', () => $('#masterDialog').close());
+  ['#mlDept', '#mlCategory', '#mlStatus'].forEach((sel) =>
+    $(sel).addEventListener('change', renderMaster)
+  );
+  $('#masterRows').addEventListener('click', (e) => {
+    const tr = e.target.closest('.master-row');
+    if (tr) openView(tr.dataset.id, tr.dataset.name, tr.dataset.pdf === '1');
+  });
+
+  // Distributions
+  $('#distClose').addEventListener('click', () => $('#distDialog').close());
+  $('#distList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.d-receive');
+    if (!btn) return;
+    await isoAction(`/api/distributions/${btn.dataset.id}/receive`);
+    renderDist();
+  });
+
+  // Viewer ISO panel actions (delegated)
+  $('#viewIso').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || !currentDoc) return;
+    const id = currentDoc.id;
+    if (btn.classList.contains('iso-approve')) {
+      await isoAction(`/api/files/${id}/approve`);
+      refreshAndView(id);
+    } else if (btn.classList.contains('iso-submit')) {
+      await isoAction(`/api/files/${id}/submit`);
+      refreshAndView(id);
+    } else if (btn.classList.contains('iso-reject')) {
+      const comment = prompt(t('rejectPrompt'), '');
+      if (comment === null) return;
+      await isoAction(`/api/files/${id}/reject`, { comment });
+      refreshAndView(id);
+    } else if (btn.classList.contains('iso-distribute')) {
+      const dept = $('#viewIso .iso-dept').value;
+      await isoAction(`/api/files/${id}/distribute`, { dept_code: dept });
+      // Open the controlled-print copy so the blue watermark is visible
+      window.open(`/api/files/${id}/download?distribute=${encodeURIComponent(dept)}&inline=1`, '_blank');
+    } else if (btn.classList.contains('iso-review')) {
+      await isoAction(`/api/files/${id}/review`);
+      refreshAndView(id);
+    } else if (btn.classList.contains('iso-revise')) {
+      $('#reviseInput').click();
+    }
+  });
+  $('#viewIso').addEventListener('change', async (e) => {
+    if (!e.target.matches('#reviseInput') || !currentDoc) return;
+    const file = e.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('detail_of_revision', 'Revised via viewer');
+    try {
+      const created = await isoAction(`/api/files/${currentDoc.id}/revise`, fd, true);
+      docCache[created.id] = created;
+      openView(created.id, created.title, isPdf(created)); // open the new revision
+    } catch (err) {
+      alert(err.message);
+    }
+  });
+
   // --- Dashboard ----------------------------------------------------------
   $('#dashOpen').addEventListener('click', () => {
     closeAdmin();
@@ -1412,7 +1820,7 @@ async function init() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
-  await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer')]);
+  await Promise.all([loadAxis('type'), loadAxis('department'), loadAxis('customer'), loadDocCategories()]);
   await loadFiles();
 }
 

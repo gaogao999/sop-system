@@ -146,12 +146,106 @@
         <button type="button" id="adminClose" class="ghost" data-i18n="close">Close</button>
       </div>
       <div class="admin-grid">
+        <button type="button" id="darOpen" class="admin-item" data-i18n="dar">📝 New document (DAR)</button>
+        <button type="button" id="approvalsOpen" class="admin-item" data-i18n="approvals">✅ Approvals</button>
+        <button type="button" id="masterOpen" class="admin-item" data-i18n="masterList">📋 Master List</button>
+        <button type="button" id="distOpen" class="admin-item" data-i18n="distributions">📦 Distributions</button>
         <button type="button" id="uploadOpen" class="admin-item" data-i18n="upload">+ Upload</button>
         <button type="button" id="bulkOpen" class="admin-item" data-i18n="bulk">⧉ Bulk upload</button>
         <button type="button" id="csvOpen" class="admin-item" data-i18n="csv">⇅ CSV</button>
         <button type="button" id="dashOpen" class="admin-item" data-i18n="dashboard">📊 Dashboard</button>
         <button type="button" id="settingsOpen" class="admin-item" data-i18n="settings">⚙ Settings</button>
       </div>
+    </dialog>
+
+    <!-- DAR — Document Action Request (new controlled document) -->
+    <dialog id="darDialog">
+      <form id="darForm" method="dialog">
+        <h2 data-i18n="darTitle">📝 New document (DAR)</h2>
+        <p class="hint" data-i18n="darHint">Submit a Document Action Request. The number is generated automatically; the document starts in Pending Review.</p>
+        <div class="field-row">
+          <label>
+            <span data-i18n="darCategory">Category</span> <span class="req">*</span>
+            <select id="darCategory" required></select>
+          </label>
+          <label>
+            <span data-i18n="upDept">Department</span> <span class="req">*</span>
+            <select id="darDept" required></select>
+          </label>
+        </div>
+        <label id="darCustWrap" hidden>
+          <span data-i18n="upCust">Customer</span> <span class="req">*</span>
+          <select id="darCust"></select>
+        </label>
+        <p class="dar-number"><span data-i18n="darNumber">Document No.</span>: <strong id="darNumber">—</strong> <span class="muted">Rev 00</span></p>
+        <label>
+          <span data-i18n="upTitleF">Title</span> <span class="req">*</span>
+          <input type="text" id="darTitleInput" maxlength="200" required />
+        </label>
+        <label>
+          <span data-i18n="darDetail">Detail of revision</span>
+          <textarea id="darDetail" rows="2" maxlength="1000"></textarea>
+        </label>
+        <label>
+          <span data-i18n="upFile">File (PDF / Excel / Word)</span> <span class="req">*</span>
+          <input type="file" id="darFile" accept=".pdf,.xls,.xlsx,.doc,.docx" required />
+        </label>
+        <p id="darError" class="error" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" id="darCancel" class="ghost" data-i18n="cancel">Cancel</button>
+          <button type="submit" class="primary" data-i18n="darSubmit">Submit DAR</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Approval queue -->
+    <dialog id="approvalsDialog" class="admin">
+      <div class="settings-head">
+        <h2 data-i18n="approvalsTitle">✅ Approvals</h2>
+        <button type="button" id="approvalsClose" class="ghost" data-i18n="close">Close</button>
+      </div>
+      <p class="hint" data-i18n="approvalsHint">Documents awaiting review or approval. Approving advances the stage; the final approval makes it the effective MASTER DOCUMENT.</p>
+      <ul id="approvalsList" class="queue-list"></ul>
+    </dialog>
+
+    <!-- Master List -->
+    <dialog id="masterDialog" class="admin wide">
+      <div class="settings-head">
+        <h2 data-i18n="masterTitle">📋 Master List</h2>
+        <button type="button" id="masterClose" class="ghost" data-i18n="close">Close</button>
+      </div>
+      <div class="master-filters">
+        <select id="mlDept"></select>
+        <select id="mlCategory"></select>
+        <select id="mlStatus"></select>
+      </div>
+      <div class="table-wrap">
+        <table class="file-table">
+          <thead>
+            <tr>
+              <th data-i18n="colDoc">Doc No.</th>
+              <th data-i18n="upTitleF">Title</th>
+              <th data-i18n="darCategory">Cat.</th>
+              <th data-i18n="colDept">Dept</th>
+              <th>Rev</th>
+              <th data-i18n="mlStatusCol">Status</th>
+              <th data-i18n="mlEffective">Effective</th>
+              <th data-i18n="mlReview">Next review</th>
+            </tr>
+          </thead>
+          <tbody id="masterRows"></tbody>
+        </table>
+      </div>
+    </dialog>
+
+    <!-- Distributions / receipts -->
+    <dialog id="distDialog" class="admin wide">
+      <div class="settings-head">
+        <h2 data-i18n="distTitle">📦 Distributions</h2>
+        <button type="button" id="distClose" class="ghost" data-i18n="close">Close</button>
+      </div>
+      <p class="hint" data-i18n="distHint">Controlled-print distributions. The receiving department confirms receipt here.</p>
+      <ul id="distList" class="queue-list"></ul>
     </dialog>
 
     <!-- In-app document preview (view without downloading) -->
@@ -167,6 +261,8 @@
           <button type="button" id="viewClose" class="ghost" data-i18n="close">✕ Close</button>
         </span>
       </div>
+      <!-- ISO document-control info + actions (shown for controlled documents) -->
+      <div id="viewIso" class="view-iso" hidden></div>
       <!-- Controlled-copy stamp — only visible when printing (@media print) -->
       <div id="printStamp" class="print-stamp" aria-hidden="true"></div>
       <p id="viewLoading" class="viewer-loading" hidden data-i18n="vLoading">Loading… if it stays blank, use “Open in new tab”.</p>

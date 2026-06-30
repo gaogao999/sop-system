@@ -250,6 +250,48 @@ button, .btn-link {
 .file-snippet { font-size: 12.5px; color: #475569; margin-top: 3px; line-height: 1.4; }
 mark { background: #fef08a; color: inherit; border-radius: 2px; padding: 0 1px; }
 
+/* ---- ISO document control ---- */
+dialog.admin.wide { width: min(1000px, 96vw); }
+.status-badge { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 8px; }
+.status-badge.st-master { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.status-badge.st-void { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+.status-badge.st-draft { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
+.status-badge.st-pending_review,
+.status-badge.st-pending_approval { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+.status-badge.st-cancelled { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+
+.queue-list { list-style: none; margin: 14px 0 0; padding: 0; max-height: 60vh; overflow: auto; }
+.queue-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+}
+.queue-main { min-width: 0; font-size: 14px; }
+.queue-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.queue-actions button, .queue-actions select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
+.queue-actions .primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.reject-note { color: #b45309; font-size: 13px; }
+
+.master-filters { display: flex; gap: 10px; margin: 14px 0 8px; }
+.master-filters select { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.master-row { cursor: pointer; }
+.master-row:hover { background: #eef2ff; }
+
+.dar-number { font-size: 14px; margin: 4px 0; }
+.dar-number strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--primary); }
+
+/* Viewer ISO info panel */
+.view-iso { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px 0; background: #f8fafc; }
+.view-iso[hidden] { display: none; }
+.iso-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.iso-meta { font-size: 13px; color: var(--muted); }
+.iso-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.iso-actions button, .iso-actions select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; font-size: 13px; }
+.iso-actions .primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+.iso-revs { margin-top: 10px; }
+.iso-revs-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.rev-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.rev-table td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+
 /* ---- Manage menu ---- */
 dialog.admin { width: min(440px, 92vw); }
 .admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
