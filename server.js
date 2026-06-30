@@ -494,7 +494,7 @@ function fileSelectSql({ snippet = false } = {}) {
          f.doc_no, f.revision, f.doc_date, f.model, f.product_name, f.product_no,
          f.status, f.category, f.dept_code, f.effective_date, f.next_review_date,
          f.detail_of_revision, f.changed_pages, f.reviewer, f.approver, f.reject_comment,
-         f.last_reviewed_at, f.last_reviewed_by,
+         f.last_reviewed_at, f.last_reviewed_by, f.request_type,
          (SELECT GROUP_CONCAT(pc.code, ' ') FROM product_codes pc WHERE pc.file_id = f.id) AS codes,
          (${CURRENT_REV}) AS is_current,
          (SELECT COUNT(*) FROM sop_files g2 WHERE g2.doc_no = f.doc_no AND f.doc_no <> '') AS revision_count,
@@ -940,19 +940,21 @@ app.post('/api/dar', requireAuth, (req, res) => {
     const title = str(req.body.title, 200) || req.file.originalname;
     const pdfText = extractFullText(join(UPLOAD_DIR, req.file.filename), req.file.mimetype);
 
+    const allowedTypes = ['new', 'change', 'additional_copy', 'cancel'];
+    const requestType = allowedTypes.includes(req.body.request_type) ? req.body.request_type : 'new';
     const info = db
       .prepare(
         `INSERT INTO sop_files
           (title, description, doc_type_id, department_id, customer_id, doc_no, revision, status,
-           category, dept_code, detail_of_revision, changed_pages, reviewer, approver,
+           category, dept_code, detail_of_revision, changed_pages, reviewer, approver, request_type,
            pdf_text, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
-         VALUES (?, ?, ?, ?, ?, ?, '00', 'pending_review', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, '00', 'pending_review', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title, str(req.body.description, 1000), ensureDocType(cat.code), dept.id,
         customer ? customer.id : null, docNo, cat.code, dept.name,
         str(req.body.detail_of_revision, 1000), str(req.body.changed_pages, 100),
-        str(req.body.reviewer, 100), str(req.body.approver, 100),
+        str(req.body.reviewer, 100), str(req.body.approver, 100), requestType,
         pdfText, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size,
         req.session.user.id, new Date().toISOString()
       );

@@ -152,6 +152,7 @@
       <div class="admin-grid">
         <button type="button" id="darOpen" class="admin-item" data-i18n="dar">📝 New document (DAR)</button>
         <button type="button" id="approvalsOpen" class="admin-item" data-i18n="approvals">✅ Approvals</button>
+        <button type="button" id="masterOpen" class="admin-item" data-i18n="masterList">📋 Master List</button>
         <button type="button" id="bulkOpen" class="admin-item" data-i18n="bulk">⧉ Bulk import (past files)</button>
         <button type="button" id="distOpen" class="admin-item" data-i18n="distributions">📦 Distributions</button>
         <button type="button" id="csvOpen" class="admin-item" data-i18n="csv">⇅ CSV</button>
@@ -174,6 +175,15 @@
           <span class="hint" data-i18n="darReadHint">Reads category / department / title from the document</span>
         </div>
         <p id="darStatus" class="extract-status" hidden></p>
+        <label>
+          <span data-i18n="darRequestFor">Request for</span> <span class="req">*</span>
+          <select id="darRequestType">
+            <option value="new" data-i18n="reqNew">Issue New Document</option>
+            <option value="change" data-i18n="reqChange">Change / Modification</option>
+            <option value="additional_copy" data-i18n="reqCopy">Request Additional copy</option>
+            <option value="cancel" data-i18n="reqCancel">Cancel document</option>
+          </select>
+        </label>
         <div class="field-row">
           <label>
             <span data-i18n="darCategory">Category</span> <span class="req">*</span>
@@ -193,10 +203,16 @@
           <span data-i18n="upTitleF">Title</span> <span class="req">*</span>
           <input type="text" id="darTitleInput" maxlength="200" required />
         </label>
-        <label>
-          <span data-i18n="darDetail">Detail of revision</span>
-          <textarea id="darDetail" rows="2" maxlength="1000"></textarea>
-        </label>
+        <div class="field-row">
+          <label>
+            <span data-i18n="darDetail">Detail of revision</span>
+            <textarea id="darDetail" rows="2" maxlength="1000"></textarea>
+          </label>
+          <label>
+            <span data-i18n="darPages">Page(s)</span>
+            <input type="text" id="darPages" maxlength="100" placeholder="e.g. 2, 3-4" />
+          </label>
+        </div>
         <p id="darError" class="error" hidden></p>
         <div class="dialog-actions">
           <button type="button" id="darCancel" class="ghost" data-i18n="cancel">Cancel</button>
@@ -229,14 +245,15 @@
       <div class="table-wrap">
         <table class="file-table">
           <thead>
+            <!-- Columns mirror the official FDC-002 Master List of Document -->
             <tr>
-              <th data-i18n="colDoc">Doc No.</th>
-              <th data-i18n="upTitleF">Title</th>
-              <th data-i18n="darCategory">Cat.</th>
-              <th data-i18n="colDept">Dept</th>
-              <th>Rev</th>
+              <th data-i18n="mlDocNo">Document No.</th>
+              <th data-i18n="mlDocName">Document Name</th>
+              <th data-i18n="mlModel">Model</th>
+              <th data-i18n="colCust">Customer</th>
+              <th>Rev.</th>
+              <th data-i18n="mlRevDate">Rev. Date</th>
               <th data-i18n="mlStatusCol">Status</th>
-              <th data-i18n="mlEffective">Effective</th>
               <th data-i18n="mlReview">Next review</th>
             </tr>
           </thead>

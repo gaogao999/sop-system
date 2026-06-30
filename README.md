@@ -30,7 +30,8 @@ A web app for managing **SOP (Standard Operating Procedure)** documents in **PDF
   - **DAR → approval workflow** — submit a Document Action Request, then `Draft → Pending Review → Pending Approval → MASTER DOCUMENT`. An approval queue lets approvers advance or reject (back to Draft with a comment). Effective date and next-review date (+1 year) are recorded on final approval.
   - **Electronic control stamps** — PDFs are watermarked on the fly with `pdf-lib`: red **MASTER DOCUMENT** + effective date on page 1, blue **CONTROLLED PRINT** + destination department on every page of a distributed copy, red diagonal **VOID** on superseded revisions, and **UNCONTROLLED** for external copies. Stored files are never modified.
   - **Revision history & VOID** — revising a master document issues the next revision and automatically marks the previous one **VOID** (kept one generation for traceability); the detail view shows the full revision table.
-  - **Master List** — the digital FDC-002: every controlled document with number, title, category, department, current revision, status, effective date and next-review date, filterable by department/category/status.
+  - **DAR "Request for"** — the request type from form FDC-001 (Issue New / Change / Additional copy / Cancel) plus a Page(s) field; shown on the approval queue.
+  - **Master List** — the digital FDC-002, with its columns (Document No. / Document Name / Model / Customer / Rev. / Rev. Date / Status / Next review), filterable by department/category/status.
   - **Distribution & receipt** — distribute a controlled print to a department and track receipt confirmation.
 - **File list, download and delete**
 

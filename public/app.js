@@ -75,6 +75,9 @@ const I18N = {
     darAutoHint: 'Attach the document first — the category, department and title are read from it automatically. Review, then submit. The number is generated for you.',
     darCategory: 'Category', darNumber: 'Document No.', darDetail: 'Detail of revision', darSubmit: 'Submit DAR',
     darRead: '📄 Read file', darReadHint: 'Reads category / department / title from the document', darNoFile: 'Choose a file first.',
+    darRequestFor: 'Request for', darPages: 'Page(s)',
+    reqNew: 'Issue New Document', reqChange: 'Change / Modification', reqCopy: 'Request Additional copy', reqCancel: 'Cancel document',
+    mlDocNo: 'Document No.', mlDocName: 'Document Name', mlModel: 'Model', mlRevDate: 'Rev. Date',
     approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
     approvalsHint: 'Documents awaiting review or approval. Approving advances the stage; the final approval makes it the effective MASTER DOCUMENT.',
     masterList: '📋 Master List', masterTitle: '📋 Master List',
@@ -161,6 +164,9 @@ const I18N = {
     darAutoHint: 'แนบไฟล์ก่อน — ระบบจะอ่านประเภท แผนก และชื่อเอกสารให้อัตโนมัติ ตรวจสอบแล้วจึงส่ง เลขเอกสารจะออกให้อัตโนมัติ',
     darCategory: 'ประเภทเอกสาร', darNumber: 'เลขเอกสาร', darDetail: 'รายละเอียดการแก้ไข', darSubmit: 'ส่ง DAR',
     darRead: '📄 อ่านไฟล์', darReadHint: 'อ่านประเภท / แผนก / ชื่อ จากเอกสาร', darNoFile: 'เลือกไฟล์ก่อน',
+    darRequestFor: 'คำขอ', darPages: 'หน้า',
+    reqNew: 'ขอออกเอกสารใหม่', reqChange: 'ขอเปลี่ยนแปลงเอกสาร', reqCopy: 'ขอสำเนาเพิ่มเติม', reqCancel: 'ยกเลิกเอกสาร',
+    mlDocNo: 'เลขเอกสาร', mlDocName: 'ชื่อเอกสาร', mlModel: 'รุ่น', mlRevDate: 'วันที่แก้ไข',
     approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
     approvalsHint: 'เอกสารที่รอตรวจสอบ/อนุมัติ การอนุมัติจะเลื่อนขั้น และการอนุมัติขั้นสุดท้ายจะทำให้เป็น MASTER DOCUMENT',
     masterList: '📋 Master List', masterTitle: '📋 Master List',
@@ -854,6 +860,9 @@ const STATUS_KEY = {
   draft: 'stDraft', pending_review: 'stPendingReview', pending_approval: 'stPendingApproval',
   master: 'stMaster', void: 'stVoid', cancelled: 'stCancelled',
 };
+const REQUEST_KEY = {
+  new: 'reqNew', change: 'reqChange', additional_copy: 'reqCopy', cancel: 'reqCancel',
+};
 function statusBadge(status) {
   const key = STATUS_KEY[status] || 'stMaster';
   return `<span class="status-badge st-${status || 'master'}">${t(key)}</span>`;
@@ -960,6 +969,8 @@ async function submitDAR(e) {
   if (!$('#darCustWrap').hidden) fd.append('customer_id', $('#darCust').value);
   fd.append('title', $('#darTitleInput').value);
   fd.append('detail_of_revision', $('#darDetail').value);
+  fd.append('changed_pages', $('#darPages').value);
+  fd.append('request_type', $('#darRequestType').value);
   try {
     await isoAction('/api/dar', fd, true);
     $('#darDialog').close();
@@ -991,6 +1002,7 @@ async function renderApprovals() {
           (f) => `<li class="queue-item" data-id="${f.id}">
             <div class="queue-main">
               <span class="doc-no">${esc(f.doc_no || '-')}</span> ${statusBadge(f.status)}
+              <span class="req-type">${t(REQUEST_KEY[f.request_type] || 'reqNew')}</span>
               <div>${esc(f.title)}</div>
               ${f.detail_of_revision ? `<div class="muted">${esc(f.detail_of_revision)}</div>` : ''}
               ${f.reject_comment ? `<div class="reject-note">⤺ ${esc(f.reject_comment)}</div>` : ''}
@@ -1040,11 +1052,11 @@ async function renderMaster() {
           (f) => `<tr class="master-row" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">
             <td class="doc-no">${esc(f.doc_no || '-')}</td>
             <td>${esc(f.title)}</td>
-            <td>${esc(f.category || f.doc_type_name || '')}</td>
-            <td>${esc(f.dept_code || f.department_name || '')}</td>
+            <td>${esc(f.model || '')}</td>
+            <td>${f.customer_name ? esc(f.customer_name) : '<span class="muted">-</span>'}</td>
             <td>${esc(f.revision || '')}</td>
+            <td>${dateOnly(f.effective_date || f.doc_date)}</td>
             <td>${statusBadge(f.status)}</td>
-            <td>${dateOnly(f.effective_date)}</td>
             <td>${dateOnly(f.next_review_date)}</td>
           </tr>`
         )

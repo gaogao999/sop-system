@@ -275,6 +275,7 @@ dialog.admin.wide { width: min(1000px, 96vw); }
 .queue-actions button, .queue-actions select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
 .queue-actions .primary { background: var(--primary); color: #fff; border-color: var(--primary); }
 .reject-note { color: #b45309; font-size: 13px; }
+.req-type { font-size: 11px; color: var(--muted); background: #eef2ff; border-radius: 6px; padding: 1px 7px; }
 
 .master-filters { display: flex; gap: 10px; margin: 14px 0 8px; }
 .master-filters select { padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; }
