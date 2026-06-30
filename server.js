@@ -557,13 +557,52 @@ const consumeSerial = db.transaction((key) => {
 });
 
 // --- PDF watermark stamps (QP-DC-01 6.1.4-6.1.8) ---------------------------
-// Overlay text stamps on a PDF. Best-effort: if the PDF can't be parsed we
-// return the original bytes unchanged (the document still opens).
+// Overlay control stamps on a PDF, styled to mirror the physical rubber stamps
+// (red bordered box: ORG / TITLE / [boxed date or dest] / DOCUMENT CONTROL
+// SECTION). Best-effort: if the PDF can't be parsed we return it unchanged.
+const MONTHS3 = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+function stampDate(iso) {
+  const m = (iso || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return `${Number(m[3])} ${MONTHS3[Number(m[2]) - 1]} ${m[1]}`; // 24 JAN 2024
+}
+
+// Draw a rubber-stamp-style box at the top-right of a page.
+function drawStampBox(page, font, { color, title, boxText, bottom }) {
+  const { width, height } = page.getSize();
+  const w = 208;
+  const h = 96;
+  const x = width - w - 34;
+  const y = height - h - 34;
+  const cx = x + w / 2;
+  const c = rgb(...color);
+  const center = (text, size, baseY, scale = 1) => {
+    const tw = font.widthOfTextAtSize(text, size);
+    page.drawText(text, { x: cx - tw / 2, y: baseY, size, font, color: c, opacity: 0.92 });
+  };
+  // outer border
+  page.drawRectangle({ x, y, width: w, height: h, borderColor: c, borderWidth: 2, borderOpacity: 0.92 });
+  center('KGT', 12, y + h - 22);
+  center(title, 16, y + h - 46);
+  // inner boxed value (date for MASTER, destination for CONTROLLED PRINT)
+  if (boxText) {
+    const bw = 124;
+    const bh = 22;
+    const bx = x + (w - bw) / 2;
+    const by = y + 28;
+    page.drawRectangle({ x: bx, y: by, width: bw, height: bh, borderColor: c, borderWidth: 1, borderOpacity: 0.92 });
+    const ts = 12;
+    const tw = font.widthOfTextAtSize(boxText, ts);
+    page.drawText(boxText, { x: bx + (bw - tw) / 2, y: by + (bh - ts) / 2 + 1, size: ts, font, color: c, opacity: 0.92 });
+  }
+  center(bottom, 8, y + 10);
+}
+
 const STAMP = {
-  master: { text: 'MASTER DOCUMENT', color: [0.8, 0, 0], allPages: false, diagonal: false },
-  controlled: { text: 'CONTROLLED PRINT', color: [0.1, 0.3, 0.85], allPages: true, diagonal: false },
-  void: { text: 'VOID', color: [0.85, 0, 0], allPages: true, diagonal: true },
-  uncontrolled: { text: 'UNCONTROLLED', color: [0.85, 0, 0], allPages: true, diagonal: true },
+  master: { color: [0.85, 0, 0], allPages: false, box: { title: 'MASTER DOCUMENT', bottom: 'DOCUMENT CONTROL SECTION' } },
+  controlled: { color: [0.1, 0.3, 0.85], allPages: true, box: { title: 'CONTROLLED PRINT', bottom: 'DOCUMENT CONTROL SECTION' } },
+  void: { color: [0.85, 0, 0], allPages: true, diagonal: 'VOID' },
+  uncontrolled: { color: [0.85, 0, 0], allPages: true, diagonal: 'UNCONTROLLED' },
 };
 async function watermarkPdf(bytes, kind, note) {
   const spec = STAMP[kind];
@@ -575,7 +614,6 @@ async function watermarkPdf(bytes, kind, note) {
     return bytes; // not a parseable PDF (e.g. a scan wrapper we can't open) — serve as-is
   }
   const font = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const color = rgb(...spec.color);
   const pages = pdf.getPages();
   pages.forEach((page, i) => {
     if (!spec.allPages && i > 0) return;
@@ -583,21 +621,20 @@ async function watermarkPdf(bytes, kind, note) {
     if (spec.diagonal) {
       // Big translucent diagonal stamp across the page (VOID / UNCONTROLLED)
       const size = Math.min(width, height) / 5;
-      page.drawText(spec.text, {
+      page.drawText(spec.diagonal, {
         x: width * 0.12,
         y: height * 0.42,
         size,
         font,
-        color,
+        color: rgb(...spec.color),
         opacity: 0.28,
         rotate: degrees(35),
       });
     } else {
-      // Header band stamp (MASTER DOCUMENT / CONTROLLED PRINT)
-      page.drawText(spec.text, { x: 36, y: height - 46, size: 20, font, color, opacity: 0.9 });
-      if (note) {
-        page.drawText(note, { x: 36, y: height - 64, size: 10, font, color, opacity: 0.9 });
-      }
+      // Rubber-stamp-style box (MASTER DOCUMENT / CONTROLLED PRINT).
+      // For MASTER the box shows the effective date; for CONTROLLED, the destination.
+      const boxText = kind === 'master' ? stampDate(note) : note || '';
+      drawStampBox(page, font, { color: spec.color, ...spec.box, boxText });
     }
   });
   return await pdf.save();
@@ -1253,12 +1290,12 @@ app.get('/api/files/:id/download', requireAuth, async (req, res) => {
     kind = 'uncontrolled';
   } else if (req.query.distribute) {
     kind = 'controlled';
-    note = `Distributed to: ${String(req.query.distribute).slice(0, 40)}`;
+    note = String(req.query.distribute).slice(0, 40); // destination dept -> stamp box
   } else if (row.status === 'void') {
     kind = 'void';
   } else if (row.status === 'master') {
     kind = 'master';
-    note = row.effective_date ? `Effective: ${row.effective_date.slice(0, 10)}` : '';
+    note = row.effective_date ? row.effective_date.slice(0, 10) : ''; // -> "24 JAN 2024" in the box
   }
 
   if (isPdf && kind) {
