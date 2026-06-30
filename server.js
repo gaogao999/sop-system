@@ -567,35 +567,36 @@ function stampDate(iso) {
   return `${Number(m[3])} ${MONTHS3[Number(m[2]) - 1]} ${m[1]}`; // 24 JAN 2024
 }
 
-// Draw a rubber-stamp-style box at the top-right of a page.
+// Draw a rubber-stamp-style box at the top-right of a page. Sized to match the
+// real rubber stamp (compact), not spanning the page width.
 function drawStampBox(page, font, { color, title, boxText, bottom }) {
   const { width, height } = page.getSize();
-  const w = 208;
-  const h = 96;
-  const x = width - w - 34;
-  const y = height - h - 34;
+  const w = 150;
+  const h = 74;
+  const x = width - w - 30;
+  const y = height - h - 30;
   const cx = x + w / 2;
   const c = rgb(...color);
-  const center = (text, size, baseY, scale = 1) => {
+  const center = (text, size, baseY) => {
     const tw = font.widthOfTextAtSize(text, size);
     page.drawText(text, { x: cx - tw / 2, y: baseY, size, font, color: c, opacity: 0.92 });
   };
   // outer border
-  page.drawRectangle({ x, y, width: w, height: h, borderColor: c, borderWidth: 2, borderOpacity: 0.92 });
-  center('KGT', 12, y + h - 22);
-  center(title, 16, y + h - 46);
+  page.drawRectangle({ x, y, width: w, height: h, borderColor: c, borderWidth: 1.5, borderOpacity: 0.92 });
+  center('KGT', 9, y + h - 16);
+  center(title, 11, y + h - 33);
   // inner boxed value (date for MASTER, destination for CONTROLLED PRINT)
   if (boxText) {
-    const bw = 124;
-    const bh = 22;
+    const bw = 94;
+    const bh = 16;
     const bx = x + (w - bw) / 2;
-    const by = y + 28;
+    const by = y + 19;
     page.drawRectangle({ x: bx, y: by, width: bw, height: bh, borderColor: c, borderWidth: 1, borderOpacity: 0.92 });
-    const ts = 12;
+    const ts = 9;
     const tw = font.widthOfTextAtSize(boxText, ts);
     page.drawText(boxText, { x: bx + (bw - tw) / 2, y: by + (bh - ts) / 2 + 1, size: ts, font, color: c, opacity: 0.92 });
   }
-  center(bottom, 8, y + 10);
+  center(bottom, 6, y + 7);
 }
 
 const STAMP = {
