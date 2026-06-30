@@ -285,6 +285,8 @@ dialog.admin.wide { width: min(1000px, 96vw); }
 .dar-read-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: -4px 0 2px; }
 .dar-read-row button { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafc; cursor: pointer; font: inherit; }
 .dar-read-row button:hover { border-color: var(--primary); }
+.dar-meta { font-size: 13px; color: var(--muted); margin: 2px 0; }
+.dar-meta strong { color: var(--text); }
 .dar-number { font-size: 14px; margin: 4px 0; }
 .dar-number strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--primary); }
 

@@ -166,6 +166,7 @@
       <form id="darForm" method="dialog">
         <h2 data-i18n="darTitle">📝 New document (DAR)</h2>
         <p class="hint" data-i18n="darAutoHint">Attach the document first — the category, department and title are read from it automatically. Review, then submit. The number is generated for you.</p>
+        <p class="dar-meta"><span data-i18n="darFrom">From</span>: <strong id="darFrom">—</strong> · <span data-i18n="darDate">Date</span>: <strong id="darDate">—</strong></p>
         <label>
           <span data-i18n="upFile">File (PDF / Excel / Word)</span> <span class="req">*</span>
           <input type="file" id="darFile" accept=".pdf,.xls,.xlsx,.doc,.docx" required />
@@ -203,16 +204,30 @@
           <span data-i18n="upTitleF">Title</span> <span class="req">*</span>
           <input type="text" id="darTitleInput" maxlength="200" required />
         </label>
-        <div class="field-row">
-          <label>
-            <span data-i18n="darDetail">Detail of revision</span>
-            <textarea id="darDetail" rows="2" maxlength="1000"></textarea>
-          </label>
+        <!-- Revision detail (mirrors FDC-001: Page / Old Revise / New Revise / Effective Date) -->
+        <div class="field-row dar-rev3">
           <label>
             <span data-i18n="darPages">Page(s)</span>
             <input type="text" id="darPages" maxlength="100" placeholder="e.g. 2, 3-4" />
           </label>
+          <label>
+            <span data-i18n="darOldRev">Old Revise</span>
+            <input type="text" id="darOldRev" maxlength="10" placeholder="—" />
+          </label>
+          <label>
+            <span data-i18n="darNewRev">New Revise</span>
+            <input type="text" id="darNewRev" maxlength="10" readonly />
+          </label>
         </div>
+        <p class="hint"><span data-i18n="darEffNote">Effective Date</span>: <span data-i18n="darOnApproval">recorded automatically on approval</span></p>
+        <label>
+          <span data-i18n="darDetail">Detail of revision</span>
+          <textarea id="darDetail" rows="2" maxlength="1000"></textarea>
+        </label>
+        <label>
+          <span data-i18n="darComment">Comment</span>
+          <textarea id="darComment" rows="2" maxlength="1000"></textarea>
+        </label>
         <p id="darError" class="error" hidden></p>
         <div class="dialog-actions">
           <button type="button" id="darCancel" class="ghost" data-i18n="cancel">Cancel</button>

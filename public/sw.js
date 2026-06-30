@@ -1,10 +1,12 @@
-// SOP system service worker — app-shell cache so the UI loads fast and stays
-// installable (PWA) on the shop floor. Strategy:
-//   • Never cache /api/, /checklogin, /logout or downloads — always live.
-//   • Static assets (CSS/JS/icons): stale-while-revalidate.
-//   • Navigations: network-first, falling back to the cached shell offline.
-// Bump CACHE_VERSION to retire old caches after a deploy.
-const CACHE_VERSION = 'sop-v1';
+// SOP system service worker — keeps the app installable (PWA) and usable
+// offline, WITHOUT ever serving a stale UI. Strategy:
+//   • Never touch /api/, /checklogin, /logout or downloads — always live.
+//   • Everything else (HTML, app.js, style.css, icons): NETWORK-FIRST.
+//     The newest deploy is always shown; the cache is only an offline fallback.
+//     (A previous "stale-while-revalidate" served an old app.js next to fresh
+//     HTML, which showed raw i18n keys after a deploy — network-first fixes it.)
+// Bump CACHE_VERSION on any change so old caches are dropped.
+const CACHE_VERSION = 'sop-v2';
 const SHELL = [
   '/',
   '/assets/style.css',
@@ -49,26 +51,20 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin || isLive(url)) return; // let the network handle it
 
-  // Navigations: try the network, fall back to the cached shell when offline
-  if (req.mode === 'navigate') {
-    event.respondWith(
-      fetch(req).catch(() => caches.match('/').then((r) => r || caches.match(req)))
-    );
-    return;
-  }
-
-  // Static assets: serve cache immediately, refresh in the background
+  // Network-first: always prefer the freshest file; cache it for offline use.
+  // Fall back to the cache (or the cached shell for navigations) only when the
+  // network is unavailable.
   event.respondWith(
-    caches.open(CACHE_VERSION).then((cache) =>
-      cache.match(req).then((cached) => {
-        const network = fetch(req)
-          .then((res) => {
-            if (res && res.status === 200) cache.put(req, res.clone());
-            return res;
-          })
-          .catch(() => cached);
-        return cached || network;
+    fetch(req)
+      .then((res) => {
+        if (res && res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
+        }
+        return res;
       })
-    )
+      .catch(() =>
+        caches.match(req).then((cached) => cached || (req.mode === 'navigate' ? caches.match('/') : undefined))
+      )
   );
 });

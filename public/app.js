@@ -76,6 +76,8 @@ const I18N = {
     darCategory: 'Category', darNumber: 'Document No.', darDetail: 'Detail of revision', darSubmit: 'Submit DAR',
     darRead: '📄 Read file', darReadHint: 'Reads category / department / title from the document', darNoFile: 'Choose a file first.',
     darRequestFor: 'Request for', darPages: 'Page(s)',
+    darFrom: 'From', darDate: 'Date', darOldRev: 'Old Revise', darNewRev: 'New Revise',
+    darEffNote: 'Effective Date', darOnApproval: 'recorded automatically on approval', darComment: 'Comment',
     reqNew: 'Issue New Document', reqChange: 'Change / Modification', reqCopy: 'Request Additional copy', reqCancel: 'Cancel document',
     mlDocNo: 'Document No.', mlDocName: 'Document Name', mlModel: 'Model', mlRevDate: 'Rev. Date',
     approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
@@ -165,6 +167,8 @@ const I18N = {
     darCategory: 'ประเภทเอกสาร', darNumber: 'เลขเอกสาร', darDetail: 'รายละเอียดการแก้ไข', darSubmit: 'ส่ง DAR',
     darRead: '📄 อ่านไฟล์', darReadHint: 'อ่านประเภท / แผนก / ชื่อ จากเอกสาร', darNoFile: 'เลือกไฟล์ก่อน',
     darRequestFor: 'คำขอ', darPages: 'หน้า',
+    darFrom: 'จาก', darDate: 'วันที่', darOldRev: 'ฉบับเดิม', darNewRev: 'ฉบับใหม่',
+    darEffNote: 'วันที่มีผล', darOnApproval: 'บันทึกอัตโนมัติเมื่ออนุมัติ', darComment: 'หมายเหตุ',
     reqNew: 'ขอออกเอกสารใหม่', reqChange: 'ขอเปลี่ยนแปลงเอกสาร', reqCopy: 'ขอสำเนาเพิ่มเติม', reqCancel: 'ยกเลิกเอกสาร',
     mlDocNo: 'เลขเอกสาร', mlDocName: 'ชื่อเอกสาร', mlModel: 'รุ่น', mlRevDate: 'วันที่แก้ไข',
     approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
@@ -966,6 +970,12 @@ function openDAR() {
     .join('');
   fillSelect($('#darDept'), state.department.items, 'id', 'name', '');
   fillSelect($('#darCust'), state.customer.items, 'id', 'name', t('selectDots'));
+  // FDC-001 header fields: requester (current user) + today's date, and the
+  // revision row (a new issue is Old "—" / New "00").
+  $('#darFrom').textContent = currentUser || '—';
+  $('#darDate').textContent = new Date().toISOString().slice(0, 10);
+  $('#darOldRev').value = '';
+  $('#darNewRev').value = '00';
   updateDarNumber();
   $('#darDialog').showModal();
 }
@@ -982,6 +992,7 @@ async function submitDAR(e) {
   fd.append('detail_of_revision', $('#darDetail').value);
   fd.append('changed_pages', $('#darPages').value);
   fd.append('request_type', $('#darRequestType').value);
+  fd.append('description', $('#darComment').value); // FDC-001 "Comment"
   try {
     await isoAction('/api/dar', fd, true);
     $('#darDialog').close();
