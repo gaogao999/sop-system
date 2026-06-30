@@ -297,11 +297,12 @@ dialog.admin.wide { width: min(1000px, 96vw); }
 .rev-table td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
 
 /* ---- Manage menu ---- */
-dialog.admin { width: min(440px, 92vw); }
-.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+dialog.admin { width: min(720px, 94vw); padding: 24px 28px; }
+.admin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+@media (max-width: 640px) { .admin-grid { grid-template-columns: 1fr 1fr; } }
 .admin-item {
-  text-align: left; padding: 14px 16px; border: 1px solid var(--line);
-  border-radius: 10px; background: #f8fafc; font: inherit; font-weight: 600; cursor: pointer;
+  text-align: left; padding: 18px 18px; border: 1px solid var(--line);
+  border-radius: 12px; background: #f8fafc; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer;
 }
 .admin-item:hover { border-color: var(--primary); background: #eef2ff; }
 

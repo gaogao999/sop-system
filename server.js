@@ -279,8 +279,19 @@ function logAccess(row, username, action) {
 }
 
 // --- Auth middleware -------------------------------------------------------
+// Demo login: while showing the mockup we skip the sign-in screen entirely and
+// run as the first (admin) user. Turn it off with DEMO_LOGIN=0 to require a
+// real sign-in (e.g. once wired to the company /checklogin).
+const DEMO_LOGIN = process.env.DEMO_LOGIN !== '0';
 const requireAuth = (req, res, next) => {
   if (req.session && req.session.user) return next();
+  if (DEMO_LOGIN) {
+    const u = db.prepare('SELECT id, username, display_name FROM users ORDER BY id LIMIT 1').get();
+    if (u) {
+      req.session.user = { id: u.id, username: u.username, display_name: u.display_name };
+      return next();
+    }
+  }
   // API -> 401, pages -> sign-in
   if (req.path.startsWith('/api/')) return res.status(401).json({ error: 'Sign in required' });
   res.redirect('/login.html');
@@ -334,7 +345,7 @@ app.post('/logout', (req, res) => {
   });
 });
 
-app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.session.user }));
+app.get('/api/me', requireAuth, (req, res) => res.json({ user: req.session.user, demo: DEMO_LOGIN }));
 
 // --- Lookup axes (doc types / departments / customers) ---------------------
 // All are simple editable name lists. They share the same shape, so a small
@@ -437,6 +448,7 @@ const noCache = (res) => res.setHeader('Cache-Control', 'no-cache');
 
 // The sign-in page and static assets are served without auth
 app.get('/login.html', (req, res) => {
+  if (DEMO_LOGIN) return res.redirect('/'); // no sign-in screen while in demo mode
   noCache(res);
   res.sendFile(join(__dirname, 'public', 'login.html'));
 });

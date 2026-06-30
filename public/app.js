@@ -6,7 +6,7 @@ const $ = (sel) => document.querySelector(sel);
 const I18N = {
   en: {
     settings: '⚙ Settings', signout: 'Sign out',
-    barcode: '📷 Barcode', bulk: '⧉ Bulk', upload: '+ Upload',
+    barcode: '📷 Barcode', bulk: '⧉ Bulk import (past files)', upload: '+ Upload',
     searchPh: '🔍 Search by product no, document no, title, product name or document content',
     sideType: 'Type', sideDept: 'Department', sideCust: 'Customer', sideProd: 'Product No.',
     newType: 'New type', newDept: 'New department', newCust: 'New customer', add: 'Add', prodPh: 'e.g. DD360',
@@ -89,7 +89,7 @@ const I18N = {
   },
   th: {
     settings: '⚙ ตั้งค่า', signout: 'ออกจากระบบ',
-    barcode: '📷 บาร์โค้ด', bulk: '⧉ หลายไฟล์', upload: '+ อัปโหลด',
+    barcode: '📷 บาร์โค้ด', bulk: '⧉ นำเข้าไฟล์เดิม (จำนวนมาก)', upload: '+ อัปโหลด',
     searchPh: '🔍 ค้นหาด้วยรหัสสินค้า เลขเอกสาร ชื่อ ชื่อสินค้า หรือเนื้อหา',
     sideType: 'ประเภท', sideDept: 'แผนก', sideCust: 'ลูกค้า', sideProd: 'รหัสสินค้า',
     newType: 'เพิ่มประเภท', newDept: 'เพิ่มแผนก', newCust: 'เพิ่มลูกค้า', add: 'เพิ่ม', prodPh: 'เช่น DD360',
@@ -1490,7 +1490,8 @@ function bindEvents() {
   // --- ISO document control -----------------------------------------------
   $('#darOpen').addEventListener('click', () => { closeAdmin(); openDAR(); });
   $('#approvalsOpen').addEventListener('click', () => { closeAdmin(); openApprovals(); });
-  $('#masterOpen').addEventListener('click', () => { closeAdmin(); openMaster(); });
+  // Master List + single Upload are kept in the code but removed from the menu
+  $('#masterOpen')?.addEventListener('click', () => { closeAdmin(); openMaster(); });
   $('#distOpen').addEventListener('click', () => { closeAdmin(); openDist(); });
 
   // DAR form
@@ -1736,7 +1737,7 @@ function bindEvents() {
 
   // Upload modal
   const dialog = $('#uploadDialog');
-  $('#uploadOpen').addEventListener('click', () => {
+  $('#uploadOpen')?.addEventListener('click', () => {
     closeAdmin();
     $('#uploadForm').reset();
     $('#uploadError').hidden = true;
@@ -1841,9 +1842,14 @@ function bindEvents() {
 // --- Bootstrap --------------------------------------------------------------
 async function init() {
   try {
-    const { user } = await api('/api/me');
+    const { user, demo } = await api('/api/me');
     currentUser = user.display_name || user.username;
     $('#me').textContent = currentUser;
+    // Demo mode auto-signs-in, so the Sign out button would be confusing — hide it
+    if (demo) {
+      const out = document.querySelector('form[action="/logout"]');
+      if (out) out.hidden = true;
+    }
   } catch {
     return; // api() already redirected on 401
   }

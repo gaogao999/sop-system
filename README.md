@@ -100,6 +100,7 @@ node seed.js <username> <password> "Display Name"
 | `OCR_LANG` | `eng` | Tesseract language(s) for scanned-PDF OCR (e.g. `eng+tha`) |
 | `OCR_MAX_PAGES` | `20` | Max pages to OCR per scanned PDF |
 | `AUTH_MODE` | `local` | `local` = built-in user table; `upstream` = delegate to the company `/checklogin` (not yet wired — denies until implemented) |
+| `DEMO_LOGIN` | `1` (on) | Skip the sign-in screen and run as the admin user (for showing the mockup). Set `DEMO_LOGIN=0` to require a real sign-in. |
 
 See `.env.example` for a copy-paste starting point.
 
