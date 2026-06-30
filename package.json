@@ -1,6 +1,6 @@
 {
   "name": "sop-system",
-  "version": "2.8.2",
+  "version": "2.8.3",
   "description": "SOP (Standard Operating Procedure) file management system — upload, categorize, search and download",
   "type": "module",
   "main": "server.js",

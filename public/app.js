@@ -663,14 +663,9 @@ function printQr() {
 }
 
 // --- File list -------------------------------------------------------------
-let loadSeq = 0; // monotonic token so only the latest load updates the view
-async function loadFiles() {
-  const seq = ++loadSeq;
-  // No search and no filter -> show the home shelves instead of a full dump
-  if (isBrowsing()) {
-    await renderHome(seq);
-    return;
-  }
+// The query params for the current search / filter selection (shared by the
+// file list and the CSV export so they always agree on "the current view").
+function filterParams() {
   const params = new URLSearchParams();
   if (state.q) params.set('q', state.q);
   if (state.code) params.set('code', state.code);
@@ -679,7 +674,17 @@ async function loadFiles() {
   for (const key of Object.keys(AXES)) {
     if (state[key].active !== 'all') params.set(AXES[key].queryKey, state[key].active);
   }
-  const rows = await api(`/api/files?${params.toString()}`);
+  return params;
+}
+let loadSeq = 0; // monotonic token so only the latest load updates the view
+async function loadFiles() {
+  const seq = ++loadSeq;
+  // No search and no filter -> show the home shelves instead of a full dump
+  if (isBrowsing()) {
+    await renderHome(seq);
+    return;
+  }
+  const rows = await api(`/api/files?${filterParams().toString()}`);
   if (seq !== loadSeq) return; // a newer load superseded this one
   lastFiles = rows;
   rememberDocs(lastFiles);
@@ -792,14 +797,21 @@ function csvCell(v) {
   const s = v == null ? '' : String(v);
   return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
-// Export the list currently shown (honours the active filters / revisions toggle)
-function exportCsv() {
-  if (!lastFiles.length) {
+// Export the current view (all documents when browsing, or the active search /
+// filter selection). Fetches fresh so it works on the home screen too.
+async function exportCsv() {
+  let rows;
+  try {
+    rows = await api(`/api/files?${filterParams().toString()}`);
+  } catch {
+    rows = [];
+  }
+  if (!rows.length) {
     $('#csvResults').innerHTML = `<li class="muted">${t('csvEmpty')}</li>`;
     return;
   }
   const head = CSV_COLUMNS.join(',');
-  const body = lastFiles
+  const body = rows
     .map((f) => CSV_COLUMNS.map((c) => csvCell(f[CSV_FIELD[c] || c])).join(','))
     .join('\r\n');
   const blob = new Blob(['﻿' + head + '\r\n' + body], { type: 'text/csv;charset=utf-8' });

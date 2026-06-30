@@ -1040,6 +1040,8 @@ app.post('/api/files/:id/revise', requireAuth, (req, res) => {
         );
       // Supersede the previous revision (auto-VOID; kept 1 generation for trace)
       db.prepare("UPDATE sop_files SET status = 'void' WHERE id = ?").run(prev.id);
+      // Carry favourites forward so a starred document stays starred after revision
+      db.prepare('UPDATE OR IGNORE favorites SET file_id = ? WHERE file_id = ?').run(info.lastInsertRowid, prev.id);
       setProductCodes(info.lastInsertRowid, prev.product_no, prev.doc_no);
       return info.lastInsertRowid;
     });
