@@ -62,16 +62,19 @@ const I18N = {
     csvFail: (e) => `Import failed: ${e}`,
     printDate: 'Printed', printedBy: 'By',
     admin: '⚙ Manage', adminTitle: '⚙ Manage',
-    homeFav: '★ Favorites', homeRecent: '🕘 Recently viewed', homePopular: '🔥 Most viewed (team)',
+    homeAll: '🗂 All documents', homeFav: '★ Favorites', homeRecent: '🕘 Recently viewed', homePopular: '🔥 Most viewed (team)',
     emptyFav: 'No favorites yet — open a document and tap ☆ to add it here.',
     emptyRecent: 'Documents you open will appear here.',
     emptyPopular: 'The most-opened documents will appear here.',
+    emptyAll: 'No documents yet — add one from Manage ▸ New document (DAR).',
+    moreDocs: (n) => `+${n} more — use search to narrow down.`,
     inText: 'in text', relevance: 'Best match',
     // ISO document control
     dar: '📝 New document (DAR)', darTitle: '📝 New document (DAR)',
     darHint: 'Submit a Document Action Request. The number is generated automatically; the document starts in Pending Review.',
     darAutoHint: 'Attach the document first — the category, department and title are read from it automatically. Review, then submit. The number is generated for you.',
     darCategory: 'Category', darNumber: 'Document No.', darDetail: 'Detail of revision', darSubmit: 'Submit DAR',
+    darRead: '📄 Read file', darReadHint: 'Reads category / department / title from the document', darNoFile: 'Choose a file first.',
     approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
     approvalsHint: 'Documents awaiting review or approval. Approving advances the stage; the final approval makes it the effective MASTER DOCUMENT.',
     masterList: '📋 Master List', masterTitle: '📋 Master List',
@@ -145,16 +148,19 @@ const I18N = {
     csvFail: (e) => `นำเข้าไม่สำเร็จ: ${e}`,
     printDate: 'พิมพ์เมื่อ', printedBy: 'โดย',
     admin: '⚙ จัดการ', adminTitle: '⚙ จัดการ',
-    homeFav: '★ รายการโปรด', homeRecent: '🕘 เปิดล่าสุด', homePopular: '🔥 เปิดบ่อย (ทีม)',
+    homeAll: '🗂 เอกสารทั้งหมด', homeFav: '★ รายการโปรด', homeRecent: '🕘 เปิดล่าสุด', homePopular: '🔥 เปิดบ่อย (ทีม)',
     emptyFav: 'ยังไม่มีรายการโปรด — เปิดเอกสารแล้วแตะ ☆ เพื่อเพิ่ม',
     emptyRecent: 'เอกสารที่คุณเปิดจะแสดงที่นี่',
     emptyPopular: 'เอกสารที่เปิดบ่อยจะแสดงที่นี่',
+    emptyAll: 'ยังไม่มีเอกสาร — เพิ่มได้จาก จัดการ ▸ เอกสารใหม่ (DAR)',
+    moreDocs: (n) => `+อีก ${n} รายการ — ใช้ค้นหาเพื่อจำกัดผล`,
     inText: 'ในเนื้อหา', relevance: 'ตรงที่สุด',
     // ISO document control
     dar: '📝 เอกสารใหม่ (DAR)', darTitle: '📝 เอกสารใหม่ (DAR)',
     darHint: 'ส่งคำขอจัดทำเอกสาร (DAR) ระบบจะออกเลขให้อัตโนมัติ และเริ่มที่สถานะรอตรวจสอบ',
     darAutoHint: 'แนบไฟล์ก่อน — ระบบจะอ่านประเภท แผนก และชื่อเอกสารให้อัตโนมัติ ตรวจสอบแล้วจึงส่ง เลขเอกสารจะออกให้อัตโนมัติ',
     darCategory: 'ประเภทเอกสาร', darNumber: 'เลขเอกสาร', darDetail: 'รายละเอียดการแก้ไข', darSubmit: 'ส่ง DAR',
+    darRead: '📄 อ่านไฟล์', darReadHint: 'อ่านประเภท / แผนก / ชื่อ จากเอกสาร', darNoFile: 'เลือกไฟล์ก่อน',
     approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
     approvalsHint: 'เอกสารที่รอตรวจสอบ/อนุมัติ การอนุมัติจะเลื่อนขั้น และการอนุมัติขั้นสุดท้ายจะทำให้เป็น MASTER DOCUMENT',
     masterList: '📋 Master List', masterTitle: '📋 Master List',
@@ -453,9 +459,10 @@ async function openView(id, name, pdf) {
 function closeView() {
   resetViewer();
   $('#viewDialog').close();
-  // Refresh any workflow list left open underneath (status may have changed)
+  // Refresh any view left open underneath (status may have changed)
   if ($('#masterDialog').open) renderMaster();
   if ($('#approvalsDialog').open) renderApprovals();
+  if (!$('#home').hidden) renderHome();
 }
 
 // Print the open document with an auto-stamped header (document no., revision,
@@ -519,6 +526,7 @@ function cardHtml(f) {
     <span class="card-doc">${esc(f.doc_no || '·')}</span>
     <span class="card-title">${esc(f.title)}</span>
     <span class="card-meta">${esc(f.doc_type_name || '')}${f.department_name ? ' · ' + esc(f.department_name) : ''}</span>
+    ${f.status && f.status !== 'master' ? `<span class="card-status">${statusBadge(f.status)}</span>` : ''}
   </button>`;
 }
 function renderShelf(sel, files, emptyKey) {
@@ -527,14 +535,23 @@ function renderShelf(sel, files, emptyKey) {
   el.innerHTML =
     files && files.length ? files.map(cardHtml).join('') : `<p class="shelf-empty">${t(emptyKey)}</p>`;
 }
+const ALL_DOCS_CAP = 60; // cards shown in "All documents" before nudging to search
 async function renderHome(seq = ++loadSeq) {
-  let data;
+  let data, all;
   try {
-    data = await api('/api/home');
+    [data, all] = await Promise.all([api('/api/home'), api('/api/files')]);
   } catch {
     return;
   }
   if (seq !== loadSeq) return; // a newer load started while we were fetching
+  // "All documents" — every current document, newest first, so anything just
+  // registered is always visible here (with its status badge) without searching.
+  rememberDocs(all);
+  const shown = all.slice(0, ALL_DOCS_CAP);
+  $('#homeAll').innerHTML = all.length
+    ? shown.map(cardHtml).join('') +
+      (all.length > ALL_DOCS_CAP ? `<p class="shelf-empty">${t('moreDocs', all.length - ALL_DOCS_CAP)}</p>` : '')
+    : `<p class="shelf-empty">${t('emptyAll')}</p>`;
   renderShelf('#homeFav', data.favorites, 'emptyFav');
   renderShelf('#homeRecent', data.recent, 'emptyRecent');
   renderShelf('#homePopular', data.popular, 'emptyPopular');
@@ -848,7 +865,9 @@ function fillSelect(sel, items, valueKey, labelKey, placeholder) {
     (placeholder ? `<option value="">${esc(placeholder)}</option>` : '') +
     items.map((i) => `<option value="${i[valueKey]}">${esc(i[labelKey])}</option>`).join('');
 }
+let darNumSeq = 0; // guard so a slow earlier number lookup can't overwrite a newer one
 async function updateDarNumber() {
+  const my = ++darNumSeq;
   const code = $('#darCategory').value;
   const cat = docCategories.find((c) => c.code === code);
   if (!cat) return;
@@ -858,9 +877,50 @@ async function updateDarNumber() {
   if (cat.scope === 'cust') params.set('customer_id', $('#darCust').value);
   try {
     const r = await api(`/api/next-number?${params}`);
+    if (my !== darNumSeq) return; // a newer lookup superseded this one
     $('#darNumber').textContent = r.doc_no || '—';
   } catch {
-    $('#darNumber').textContent = '—';
+    if (my === darNumSeq) $('#darNumber').textContent = '—';
+  }
+}
+// Read the attached file and pre-fill the DAR fields (category / dept / title /
+// customer). Used both on file-attach and via the explicit "Read file" button.
+async function darExtract(manual) {
+  const f = $('#darFile').files[0];
+  const status = $('#darStatus');
+  status.hidden = false;
+  status.className = 'extract-status';
+  if (!f) {
+    if (manual) {
+      status.textContent = t('darNoFile');
+      status.classList.add('warn');
+    } else {
+      status.hidden = true;
+    }
+    return;
+  }
+  status.textContent = t('reading');
+  try {
+    const fd = new FormData();
+    fd.append('file', f);
+    const meta = await api('/api/extract', { method: 'POST', body: fd });
+    // Category from the document-number prefix (e.g. SOP-QC-0021 -> SOP)
+    if (meta.type_code) {
+      const cat = docCategories.find((c) => c.code.toUpperCase() === meta.type_code.toUpperCase());
+      if (cat) $('#darCategory').value = cat.code;
+    }
+    const deptId = matchId('department', meta.dept_code); // from the -QC- segment
+    if (deptId) $('#darDept').value = deptId;
+    const custId = matchId('customer', meta.customer_name); // from the Model line
+    if (custId) $('#darCust').value = custId;
+    if (meta.title && !$('#darTitleInput').value) $('#darTitleInput').value = meta.title;
+    await updateDarNumber(); // refresh number + customer visibility for the new category
+    const found = meta.type_code || meta.title || meta.doc_no;
+    status.textContent = found ? t('autofilled') : t('noHeader');
+    status.classList.add(found ? 'ok' : 'warn');
+  } catch (err) {
+    status.textContent = t('autoskip', err.message);
+    status.classList.add('warn');
   }
 }
 function openDAR() {
@@ -891,6 +951,7 @@ async function submitDAR(e) {
   try {
     await isoAction('/api/dar', fd, true);
     $('#darDialog').close();
+    if (!$('#home').hidden) renderHome(); // the new doc shows in "All documents"
     openApprovals(); // jump straight to the queue so the demo can approve it
   } catch (err) {
     const el = $('#darError');
@@ -1500,44 +1561,17 @@ function bindEvents() {
   ['#darCategory', '#darDept', '#darCust'].forEach((sel) =>
     $(sel).addEventListener('change', updateDarNumber)
   );
-  // Auto-read the attached document and pre-fill category / department / title /
-  // customer, so the user just reviews instead of typing it all in.
-  $('#darFile').addEventListener('change', async (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    const status = $('#darStatus');
-    status.hidden = false;
-    status.className = 'extract-status';
-    status.textContent = t('reading');
-    try {
-      const fd = new FormData();
-      fd.append('file', f);
-      const meta = await api('/api/extract', { method: 'POST', body: fd });
-      // Category from the document-number prefix (e.g. SOP-QC-0021 -> SOP)
-      if (meta.type_code) {
-        const cat = docCategories.find((c) => c.code.toUpperCase() === meta.type_code.toUpperCase());
-        if (cat) $('#darCategory').value = cat.code;
-      }
-      // Department from the document-number middle segment (-QC-)
-      const deptId = matchId('department', meta.dept_code);
-      if (deptId) $('#darDept').value = deptId;
-      // Customer from the Model line ("TOTO : …")
-      const custId = matchId('customer', meta.customer_name);
-      if (custId) $('#darCust').value = custId;
-      // Title (only fill if the user hasn't typed one)
-      if (meta.title && !$('#darTitleInput').value) $('#darTitleInput').value = meta.title;
-      await updateDarNumber(); // refresh number + customer visibility for the new category
-      const found = meta.type_code || meta.title || meta.doc_no;
-      status.textContent = found ? t('autofilled') : t('noHeader');
-      status.classList.add(found ? 'ok' : 'warn');
-    } catch (err) {
-      status.textContent = t('autoskip', err.message);
-      status.classList.add('warn');
-    }
-  });
+  // Read the attached document and pre-fill category / department / title /
+  // customer — runs automatically on attach and on the explicit "Read file" button.
+  $('#darFile').addEventListener('change', () => darExtract());
+  $('#darRead').addEventListener('click', () => darExtract(true));
 
   // Approval queue (delegated)
   $('#approvalsClose').addEventListener('click', () => $('#approvalsDialog').close());
+  const afterQueueAction = () => {
+    renderApprovals();
+    if (!$('#home').hidden) renderHome(); // status changes show in "All documents"
+  };
   $('#approvalsList').addEventListener('click', async (e) => {
     const btn = e.target.closest('button');
     if (!btn) return;
@@ -1546,15 +1580,15 @@ function bindEvents() {
       openView(id, btn.dataset.name, btn.dataset.pdf === '1');
     } else if (btn.classList.contains('q-approve')) {
       await isoAction(`/api/files/${id}/approve`);
-      renderApprovals();
+      afterQueueAction();
     } else if (btn.classList.contains('q-submit')) {
       await isoAction(`/api/files/${id}/submit`);
-      renderApprovals();
+      afterQueueAction();
     } else if (btn.classList.contains('q-reject')) {
       const comment = prompt(t('rejectPrompt'), '');
       if (comment === null) return;
       await isoAction(`/api/files/${id}/reject`, { comment });
-      renderApprovals();
+      afterQueueAction();
     }
   });
 

@@ -89,6 +89,10 @@
         <!-- Home shelves: shown when not searching/filtering -->
         <section id="home" class="home" hidden>
           <div class="shelf">
+            <h2 data-i18n="homeAll">🗂 All documents</h2>
+            <div id="homeAll" class="card-row"></div>
+          </div>
+          <div class="shelf">
             <h2 data-i18n="homeFav">★ Favorites</h2>
             <div id="homeFav" class="card-row"></div>
           </div>
@@ -165,6 +169,10 @@
           <span data-i18n="upFile">File (PDF / Excel / Word)</span> <span class="req">*</span>
           <input type="file" id="darFile" accept=".pdf,.xls,.xlsx,.doc,.docx" required />
         </label>
+        <div class="dar-read-row">
+          <button type="button" id="darRead" class="ghost" data-i18n="darRead">📄 Read file</button>
+          <span class="hint" data-i18n="darReadHint">Reads category / department / title from the document</span>
+        </div>
         <p id="darStatus" class="extract-status" hidden></p>
         <div class="field-row">
           <label>
