@@ -1,6 +1,6 @@
 {
   "name": "sop-system",
-  "version": "2.9.2",
+  "version": "2.10.0",
   "description": "SOP (Standard Operating Procedure) file management system — upload, categorize, search and download",
   "type": "module",
   "main": "server.js",
@@ -19,6 +19,7 @@
     "express": "^4.21.2",
     "express-session": "^1.18.1",
     "multer": "^2.0.1",
-    "pdf-lib": "^1.17.1"
+    "pdf-lib": "^1.17.1",
+    "xlsx": "^0.18.5"
   }
 }

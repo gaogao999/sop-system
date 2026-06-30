@@ -78,6 +78,7 @@ const I18N = {
     darRequestFor: 'Request for', darPages: 'Page(s)',
     darFrom: 'From', darDate: 'Date', darOldRev: 'Old Revise', darNewRev: 'New Revise',
     darEffNote: 'Effective Date', darOnApproval: 'recorded automatically on approval', darComment: 'Comment',
+    darImportForm: '⬆ Import filled FDC-001 (Excel)', darImportHint: 'Reads all fields from a completed FDC-001 form', darImported: '✓ Read from FDC-001 — please review.',
     reqNew: 'Issue New Document', reqChange: 'Change / Modification', reqCopy: 'Request Additional copy', reqCancel: 'Cancel document',
     mlDocNo: 'Document No.', mlDocName: 'Document Name', mlModel: 'Model', mlRevDate: 'Rev. Date',
     approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
@@ -169,6 +170,7 @@ const I18N = {
     darRequestFor: 'คำขอ', darPages: 'หน้า',
     darFrom: 'จาก', darDate: 'วันที่', darOldRev: 'ฉบับเดิม', darNewRev: 'ฉบับใหม่',
     darEffNote: 'วันที่มีผล', darOnApproval: 'บันทึกอัตโนมัติเมื่ออนุมัติ', darComment: 'หมายเหตุ',
+    darImportForm: '⬆ นำเข้า FDC-001 (Excel)', darImportHint: 'อ่านทุกช่องจากแบบฟอร์ม FDC-001 ที่กรอกแล้ว', darImported: '✓ อ่านจาก FDC-001 แล้ว — โปรดตรวจสอบ',
     reqNew: 'ขอออกเอกสารใหม่', reqChange: 'ขอเปลี่ยนแปลงเอกสาร', reqCopy: 'ขอสำเนาเพิ่มเติม', reqCancel: 'ยกเลิกเอกสาร',
     mlDocNo: 'เลขเอกสาร', mlDocName: 'ชื่อเอกสาร', mlModel: 'รุ่น', mlRevDate: 'วันที่แก้ไข',
     approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
@@ -959,10 +961,44 @@ async function darExtract(manual) {
     status.classList.add('warn');
   }
 }
+// Import a completed FDC-001 (Excel) and pre-fill the whole DAR form.
+async function importFdc001(file) {
+  const status = $('#darImportStatus');
+  status.hidden = false;
+  status.className = 'extract-status';
+  status.textContent = t('reading');
+  try {
+    const fd = new FormData();
+    fd.append('form', file);
+    const m = await api('/api/dar/parse-form', { method: 'POST', body: fd });
+    if (m.request_type) $('#darRequestType').value = m.request_type;
+    if (m.type_code) {
+      const cat = docCategories.find((c) => c.code.toUpperCase() === m.type_code.toUpperCase());
+      if (cat) $('#darCategory').value = cat.code;
+    }
+    const deptId = matchId('department', m.dept_code);
+    if (deptId) $('#darDept').value = deptId;
+    if (m.title) $('#darTitleInput').value = m.title;
+    if (m.changed_pages) $('#darPages').value = m.changed_pages;
+    if (m.old_rev) $('#darOldRev').value = m.old_rev;
+    if (m.new_rev) $('#darNewRev').value = m.new_rev;
+    if (m.comment) $('#darComment').value = m.comment;
+    if (m.from) $('#darFrom').textContent = m.from;
+    if (m.date) $('#darDate').textContent = m.date;
+    await updateDarNumber();
+    const found = m.doc_no || m.title || m.from;
+    status.textContent = found ? t('darImported') : t('noHeader');
+    status.classList.add(found ? 'ok' : 'warn');
+  } catch (err) {
+    status.textContent = t('autoskip', err.message);
+    status.classList.add('warn');
+  }
+}
 function openDAR() {
   $('#darForm').reset();
   $('#darError').hidden = true;
   $('#darStatus').hidden = true;
+  $('#darImportStatus').hidden = true;
   fillSelect($('#darCategory'), docCategories, 'code', 'code', '');
   // show the label next to code
   $('#darCategory').innerHTML = docCategories
@@ -1611,6 +1647,12 @@ function bindEvents() {
   // customer — runs automatically on attach and on the explicit "Read file" button.
   $('#darFile').addEventListener('change', () => darExtract());
   $('#darRead').addEventListener('click', () => darExtract(true));
+  // Import a filled FDC-001 (Excel) to auto-fill the form
+  $('#darFormFile').addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (f) importFdc001(f);
+    e.target.value = '';
+  });
 
   // Approval queue (delegated)
   $('#approvalsClose').addEventListener('click', () => $('#approvalsDialog').close());

@@ -167,6 +167,12 @@
         <h2 data-i18n="darTitle">📝 New document (DAR)</h2>
         <p class="hint" data-i18n="darAutoHint">Attach the document first — the category, department and title are read from it automatically. Review, then submit. The number is generated for you.</p>
         <p class="dar-meta"><span data-i18n="darFrom">From</span>: <strong id="darFrom">—</strong> · <span data-i18n="darDate">Date</span>: <strong id="darDate">—</strong></p>
+        <!-- Import a filled FDC-001 (Excel) to auto-fill this whole form -->
+        <div class="dar-read-row dar-import">
+          <label class="link-title"><span data-i18n="darImportForm">⬆ Import filled FDC-001 (Excel)</span><input type="file" id="darFormFile" accept=".xls,.xlsx" hidden /></label>
+          <span class="hint" data-i18n="darImportHint">Reads all fields from a completed FDC-001 form</span>
+        </div>
+        <p id="darImportStatus" class="extract-status" hidden></p>
         <label>
           <span data-i18n="upFile">File (PDF / Excel / Word)</span> <span class="req">*</span>
           <input type="file" id="darFile" accept=".pdf,.xls,.xlsx,.doc,.docx" required />

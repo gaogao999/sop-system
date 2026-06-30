@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { PDFDocument, rgb, degrees, StandardFonts } from 'pdf-lib';
+import * as XLSX from 'xlsx';
 import db from './db.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -965,6 +966,90 @@ app.post('/api/dar', requireAuth, (req, res) => {
       );
     setProductCodes(info.lastInsertRowid, '', docNo);
     res.status(201).json(oneRow(info.lastInsertRowid));
+  });
+});
+
+// --- Parse a filled FDC-001 (DAR) Excel to pre-fill the form ----------------
+// Robust against layout: locate the revision-detail table by its header row,
+// then read the first data row by the header column positions. Type / Request
+// for are inferred from the document number + Old/New revise (more reliable
+// than reading checkbox marks).
+function parseFdc001(buffer) {
+  const out = { doc_no: '', title: '', changed_pages: '', old_rev: '', new_rev: '',
+    effective_date: '', from: '', section: '', date: '', request_type: '', comment: '' };
+  let wb;
+  try {
+    wb = XLSX.read(buffer, { type: 'buffer' });
+  } catch {
+    return out;
+  }
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  if (!ws) return out;
+  const grid = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: '' });
+  const norm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
+
+  // 1) Revision-detail table: find the header row, map columns, read first data row
+  let hdr = -1;
+  const col = {};
+  for (let i = 0; i < grid.length; i++) {
+    const row = grid[i].map(norm);
+    const hasName = row.some((c) => /^document name$/i.test(c));
+    const hasDoc = row.some((c) => /^doc\.?\s*no\.?$/i.test(c));
+    if (hasName && hasDoc) {
+      hdr = i;
+      row.forEach((c, j) => {
+        const cl = c.toLowerCase();
+        if (/^doc\.?\s*no\.?$/.test(cl)) col.docno = j;
+        else if (/^document name$/.test(cl)) col.name = j;
+        else if (/page/.test(cl)) col.page = j;
+        else if (/old\s*revise/.test(cl)) col.old = j;
+        else if (/new\s*revise/.test(cl)) col.new = j;
+        else if (/effective/.test(cl)) col.eff = j;
+      });
+      break;
+    }
+  }
+  if (hdr !== -1) {
+    for (let i = hdr + 1; i < grid.length; i++) {
+      const row = grid[i].map(norm);
+      const dn = col.docno != null ? row[col.docno] : '';
+      // skip the Thai sub-header row "(เลขที่เอกสาร)" etc. and the FDC-001 footer
+      if (dn && /[A-Za-z]/.test(dn) && !/^\(.*\)$/.test(dn) && !/^FDC-/i.test(dn)) {
+        out.doc_no = dn;
+        out.title = col.name != null ? row[col.name] : '';
+        out.changed_pages = col.page != null ? row[col.page] : '';
+        out.old_rev = col.old != null ? row[col.old] : '';
+        out.new_rev = col.new != null ? row[col.new] : '';
+        out.effective_date = col.eff != null ? row[col.eff] : '';
+        break;
+      }
+    }
+  }
+
+  // 2) Header fields (best-effort): From / Date / Section appear as labels with
+  // the typed value following on the same line.
+  const joined = grid.map((r) => r.map(norm).filter(Boolean).join(' ')).join('\n');
+  const grab = (re) => { const m = joined.match(re); return m ? norm(m[1]) : ''; };
+  out.from = grab(/From\s*:?\s*([^\n]*?)\s*(?:Date\s*:|$)/i);
+  out.date = grab(/Date\s*:?\s*([0-9][^\n]*)/i);
+  out.section = grab(/Section\s*:?\s*([^\n]*)/i);
+  out.comment = grab(/Comment\s*:?\s*([^\n]*)/i);
+
+  // 3) Infer Request for from the revise columns (no fragile checkbox reading)
+  const old = out.old_rev.replace(/[^0-9]/g, '');
+  out.request_type = old ? 'change' : 'new';
+  return out;
+}
+
+const formUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+app.post('/api/dar/parse-form', requireAuth, (req, res) => {
+  formUpload.single('form')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.file) return res.status(400).json({ error: 'Please choose the FDC-001 file' });
+    const fields = parseFdc001(req.file.buffer);
+    // Derive category / department from the document number (e.g. SOP-QC-0021)
+    const parts = (fields.doc_no || '').split('-');
+    res.json({ ...fields, type_code: parts[0] || '', dept_code: parts[1] || '' });
   });
 });
 
