@@ -470,10 +470,14 @@ app.get('/sw.js', (req, res) => {
   res.sendFile(join(__dirname, 'public', 'sw.js'));
 });
 
-// The home page requires auth (redirects to sign-in if not logged in)
+// The home page requires auth (redirects to sign-in if not logged in).
+// Asset URLs are version-stamped (?v=APP_VERSION) so a new deploy can never be
+// served with a stale cached app.js/style.css (the cause of raw i18n keys).
 app.get('/', requireAuth, (req, res) => {
   noCache(res);
-  res.sendFile(join(__dirname, 'public', 'index.html'));
+  let html = readFileSync(join(__dirname, 'public', 'index.html'), 'utf8');
+  html = html.replace(/\/assets\/(app\.js|style\.css|zxing\.min\.js)/g, `/assets/$1?v=${APP_VERSION}`);
+  res.type('html').send(html);
 });
 
 // --- File API --------------------------------------------------------------
@@ -923,7 +927,7 @@ app.get('/api/next-number', requireAuth, (req, res) => {
 });
 
 // Submit a DAR (Document Action Request): creates a new document in
-// "pending_review" with an auto-generated number (revision 00).
+// "pending_approval" (single-stage) with an auto-generated number (rev 00).
 app.post('/api/dar', requireAuth, (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
@@ -954,7 +958,7 @@ app.post('/api/dar', requireAuth, (req, res) => {
           (title, description, doc_type_id, department_id, customer_id, doc_no, revision, status,
            category, dept_code, detail_of_revision, changed_pages, reviewer, approver, request_type,
            pdf_text, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
-         VALUES (?, ?, ?, ?, ?, ?, '00', 'pending_review', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, '00', 'pending_approval', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         title, str(req.body.description, 1000), ensureDocType(cat.code), dept.id,
@@ -1053,21 +1057,18 @@ app.post('/api/dar/parse-form', requireAuth, (req, res) => {
   });
 });
 
-// Approve the current stage: pending_review -> pending_approval -> master.
-// On reaching "master" the effective date (= approval time) and the next review
-// date (+1 year, QP-DC-01 6.1.3 / 6.2) are recorded.
+// Single-stage approval: one approval makes a pending document the effective
+// MASTER DOCUMENT. The effective date (= approval time) and next-review date
+// (+1 year, QP-DC-01 6.1.3 / 6.2) are recorded, along with the approver.
 app.post('/api/files/:id/approve', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
   if (!row) return res.status(404).json({ error: 'File not found' });
   const me = req.session.user.username;
-  if (row.status === 'pending_review') {
-    db.prepare('UPDATE sop_files SET status = ?, reviewer = ?, reviewed_at = ?, reject_comment = ? WHERE id = ?')
-      .run('pending_approval', me, new Date().toISOString(), '', row.id);
-  } else if (row.status === 'pending_approval') {
+  if (row.status === 'pending_review' || row.status === 'pending_approval') {
     const now = new Date().toISOString();
     db.prepare(
-      'UPDATE sop_files SET status = ?, approver = ?, effective_date = ?, next_review_date = ? WHERE id = ?'
-    ).run('master', me, now, addYear(now), row.id);
+      'UPDATE sop_files SET status = ?, approver = ?, effective_date = ?, next_review_date = ?, reject_comment = ? WHERE id = ?'
+    ).run('master', me, now, addYear(now), '', row.id);
   } else {
     return res.status(400).json({ error: `Cannot approve a document that is "${row.status}"` });
   }
@@ -1091,7 +1092,7 @@ app.post('/api/files/:id/submit', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM sop_files WHERE id = ?').get(Number(req.params.id));
   if (!row) return res.status(404).json({ error: 'File not found' });
   if (row.status !== 'draft') return res.status(400).json({ error: 'Only a draft can be submitted' });
-  db.prepare('UPDATE sop_files SET status = ?, reject_comment = ? WHERE id = ?').run('pending_review', '', row.id);
+  db.prepare('UPDATE sop_files SET status = ?, reject_comment = ? WHERE id = ?').run('pending_approval', '', row.id);
   res.json(oneRow(row.id));
 });
 

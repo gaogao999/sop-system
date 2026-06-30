@@ -1179,14 +1179,13 @@ function showIsoPanel(doc) {
                <button class="ghost iso-revise">${t('revise')}</button>
                <button class="ghost iso-review">${t('annualReview')}</button>`;
   }
-  // Electronic approval record — the digital equivalent of the Prepared /
-  // Checked / Approved signature boxes (authenticated user + timestamp).
+  // Electronic approval record (single-stage): the authenticated, timestamped
+  // equivalent of the Prepared / Approved signatures.
   const sign = (name, at) =>
     name ? `${esc(name)}${at ? ` · ${dateOnly(at)}` : ''}` : `<span class="muted">${t('apprPending')}</span>`;
   const approvalBlock = `
     <div class="appr-block">
       <div><span class="appr-role">${t('apprPrepared')}</span> ${sign(doc.uploaded_by_name)}</div>
-      <div><span class="appr-role">${t('apprChecked')}</span> ${sign(doc.reviewer, doc.reviewed_at)}</div>
       <div><span class="appr-role">${t('apprApproved')}</span> ${sign(doc.approver, doc.effective_date)}</div>
     </div>`;
   panel.hidden = false;
