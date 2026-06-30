@@ -70,6 +70,7 @@ const I18N = {
     // ISO document control
     dar: '📝 New document (DAR)', darTitle: '📝 New document (DAR)',
     darHint: 'Submit a Document Action Request. The number is generated automatically; the document starts in Pending Review.',
+    darAutoHint: 'Attach the document first — the category, department and title are read from it automatically. Review, then submit. The number is generated for you.',
     darCategory: 'Category', darNumber: 'Document No.', darDetail: 'Detail of revision', darSubmit: 'Submit DAR',
     approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
     approvalsHint: 'Documents awaiting review or approval. Approving advances the stage; the final approval makes it the effective MASTER DOCUMENT.',
@@ -152,6 +153,7 @@ const I18N = {
     // ISO document control
     dar: '📝 เอกสารใหม่ (DAR)', darTitle: '📝 เอกสารใหม่ (DAR)',
     darHint: 'ส่งคำขอจัดทำเอกสาร (DAR) ระบบจะออกเลขให้อัตโนมัติ และเริ่มที่สถานะรอตรวจสอบ',
+    darAutoHint: 'แนบไฟล์ก่อน — ระบบจะอ่านประเภท แผนก และชื่อเอกสารให้อัตโนมัติ ตรวจสอบแล้วจึงส่ง เลขเอกสารจะออกให้อัตโนมัติ',
     darCategory: 'ประเภทเอกสาร', darNumber: 'เลขเอกสาร', darDetail: 'รายละเอียดการแก้ไข', darSubmit: 'ส่ง DAR',
     approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
     approvalsHint: 'เอกสารที่รอตรวจสอบ/อนุมัติ การอนุมัติจะเลื่อนขั้น และการอนุมัติขั้นสุดท้ายจะทำให้เป็น MASTER DOCUMENT',
@@ -864,6 +866,7 @@ async function updateDarNumber() {
 function openDAR() {
   $('#darForm').reset();
   $('#darError').hidden = true;
+  $('#darStatus').hidden = true;
   fillSelect($('#darCategory'), docCategories, 'code', 'code', '');
   // show the label next to code
   $('#darCategory').innerHTML = docCategories
@@ -1496,6 +1499,41 @@ function bindEvents() {
   ['#darCategory', '#darDept', '#darCust'].forEach((sel) =>
     $(sel).addEventListener('change', updateDarNumber)
   );
+  // Auto-read the attached document and pre-fill category / department / title /
+  // customer, so the user just reviews instead of typing it all in.
+  $('#darFile').addEventListener('change', async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const status = $('#darStatus');
+    status.hidden = false;
+    status.className = 'extract-status';
+    status.textContent = t('reading');
+    try {
+      const fd = new FormData();
+      fd.append('file', f);
+      const meta = await api('/api/extract', { method: 'POST', body: fd });
+      // Category from the document-number prefix (e.g. SOP-QC-0021 -> SOP)
+      if (meta.type_code) {
+        const cat = docCategories.find((c) => c.code.toUpperCase() === meta.type_code.toUpperCase());
+        if (cat) $('#darCategory').value = cat.code;
+      }
+      // Department from the document-number middle segment (-QC-)
+      const deptId = matchId('department', meta.dept_code);
+      if (deptId) $('#darDept').value = deptId;
+      // Customer from the Model line ("TOTO : …")
+      const custId = matchId('customer', meta.customer_name);
+      if (custId) $('#darCust').value = custId;
+      // Title (only fill if the user hasn't typed one)
+      if (meta.title && !$('#darTitleInput').value) $('#darTitleInput').value = meta.title;
+      await updateDarNumber(); // refresh number + customer visibility for the new category
+      const found = meta.type_code || meta.title || meta.doc_no;
+      status.textContent = found ? t('autofilled') : t('noHeader');
+      status.classList.add(found ? 'ok' : 'warn');
+    } catch (err) {
+      status.textContent = t('autoskip', err.message);
+      status.classList.add('warn');
+    }
+  });
 
   // Approval queue (delegated)
   $('#approvalsClose').addEventListener('click', () => $('#approvalsDialog').close());

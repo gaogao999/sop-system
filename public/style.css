@@ -11,6 +11,10 @@
 
 * { box-sizing: border-box; }
 
+/* The hidden attribute must always win over component display rules
+   (dialog label{display:flex}, .home{display:flex}, etc.) */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
