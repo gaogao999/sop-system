@@ -571,8 +571,8 @@ function stampDate(iso) {
 // real rubber stamp (compact), not spanning the page width.
 function drawStampBox(page, font, { color, title, boxText, bottom }) {
   const { width, height } = page.getSize();
-  const w = 150;
-  const h = 74;
+  const w = 168;
+  const h = 92;
   const x = width - w - 30;
   const y = height - h - 30;
   const cx = x + w / 2;
@@ -583,20 +583,20 @@ function drawStampBox(page, font, { color, title, boxText, bottom }) {
   };
   // outer border
   page.drawRectangle({ x, y, width: w, height: h, borderColor: c, borderWidth: 1.5, borderOpacity: 0.92 });
-  center('KGT', 9, y + h - 16);
-  center(title, 11, y + h - 33);
+  center('KGT', 11, y + h - 19);
+  center(title, 13, y + h - 40);
   // inner boxed value (date for MASTER, destination for CONTROLLED PRINT)
   if (boxText) {
-    const bw = 94;
-    const bh = 16;
+    const bw = 104;
+    const bh = 18;
     const bx = x + (w - bw) / 2;
-    const by = y + 19;
+    const by = y + 25;
     page.drawRectangle({ x: bx, y: by, width: bw, height: bh, borderColor: c, borderWidth: 1, borderOpacity: 0.92 });
-    const ts = 9;
+    const ts = 10;
     const tw = font.widthOfTextAtSize(boxText, ts);
     page.drawText(boxText, { x: bx + (bw - tw) / 2, y: by + (bh - ts) / 2 + 1, size: ts, font, color: c, opacity: 0.92 });
   }
-  center(bottom, 6, y + 7);
+  center(bottom, 7, y + 8);
 }
 
 const STAMP = {
