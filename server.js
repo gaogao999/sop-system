@@ -499,7 +499,7 @@ function fileSelectSql({ snippet = false } = {}) {
          f.customer_id, cu.name AS customer_name,
          f.doc_no, f.revision, f.doc_date, f.model, f.product_name, f.product_no,
          f.status, f.category, f.dept_code, f.effective_date, f.next_review_date,
-         f.detail_of_revision, f.changed_pages, f.reviewer, f.approver, f.reject_comment,
+         f.detail_of_revision, f.changed_pages, f.reviewer, f.reviewed_at, f.approver, f.reject_comment,
          f.last_reviewed_at, f.last_reviewed_by, f.request_type,
          (SELECT GROUP_CONCAT(pc.code, ' ') FROM product_codes pc WHERE pc.file_id = f.id) AS codes,
          (${CURRENT_REV}) AS is_current,
@@ -1061,8 +1061,8 @@ app.post('/api/files/:id/approve', requireAuth, (req, res) => {
   if (!row) return res.status(404).json({ error: 'File not found' });
   const me = req.session.user.username;
   if (row.status === 'pending_review') {
-    db.prepare('UPDATE sop_files SET status = ?, reviewer = ?, reject_comment = ? WHERE id = ?')
-      .run('pending_approval', me, '', row.id);
+    db.prepare('UPDATE sop_files SET status = ?, reviewer = ?, reviewed_at = ?, reject_comment = ? WHERE id = ?')
+      .run('pending_approval', me, new Date().toISOString(), '', row.id);
   } else if (row.status === 'pending_approval') {
     const now = new Date().toISOString();
     db.prepare(

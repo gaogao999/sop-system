@@ -177,6 +177,7 @@ const newCols = {
   // DAR "Request for" (FDC-001): new | change | additional_copy | cancel
   request_type: `TEXT NOT NULL DEFAULT 'new'`,
   reviewer: `TEXT NOT NULL DEFAULT ''`,
+  reviewed_at: `TEXT NOT NULL DEFAULT ''`, // when the reviewer (Checked by) approved
   approver: `TEXT NOT NULL DEFAULT ''`,
   reject_comment: `TEXT NOT NULL DEFAULT ''`,
   last_reviewed_at: `TEXT NOT NULL DEFAULT ''`,

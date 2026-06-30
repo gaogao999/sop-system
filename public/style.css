@@ -298,6 +298,9 @@ dialog.admin.wide { width: min(1000px, 96vw); }
 .iso-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .iso-actions button, .iso-actions select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; font-size: 13px; }
 .iso-actions .primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+/* Electronic approval record (Prepared / Checked / Approved by) */
+.appr-block { display: flex; gap: 18px; flex-wrap: wrap; margin: 8px 0; padding: 8px 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.appr-role { color: var(--muted); margin-right: 4px; }
 .iso-revs { margin-top: 10px; }
 .iso-revs-title { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
 .rev-table { width: 100%; border-collapse: collapse; font-size: 13px; }

@@ -79,6 +79,7 @@ const I18N = {
     darFrom: 'From', darDate: 'Date', darOldRev: 'Old Revise', darNewRev: 'New Revise',
     darEffNote: 'Effective Date', darOnApproval: 'recorded automatically on approval', darComment: 'Comment',
     darImportForm: '⬆ Import filled FDC-001 (Excel)', darImportHint: 'Reads all fields from a completed FDC-001 form', darImported: '✓ Read from FDC-001 — please review.',
+    apprPrepared: 'Prepared by', apprChecked: 'Checked by', apprApproved: 'Approved by', apprPending: 'pending',
     reqNew: 'Issue New Document', reqChange: 'Change / Modification', reqCopy: 'Request Additional copy', reqCancel: 'Cancel document',
     mlDocNo: 'Document No.', mlDocName: 'Document Name', mlModel: 'Model', mlRevDate: 'Rev. Date',
     approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
@@ -171,6 +172,7 @@ const I18N = {
     darFrom: 'จาก', darDate: 'วันที่', darOldRev: 'ฉบับเดิม', darNewRev: 'ฉบับใหม่',
     darEffNote: 'วันที่มีผล', darOnApproval: 'บันทึกอัตโนมัติเมื่ออนุมัติ', darComment: 'หมายเหตุ',
     darImportForm: '⬆ นำเข้า FDC-001 (Excel)', darImportHint: 'อ่านทุกช่องจากแบบฟอร์ม FDC-001 ที่กรอกแล้ว', darImported: '✓ อ่านจาก FDC-001 แล้ว — โปรดตรวจสอบ',
+    apprPrepared: 'จัดทำโดย', apprChecked: 'ตรวจสอบโดย', apprApproved: 'อนุมัติโดย', apprPending: 'รอดำเนินการ',
     reqNew: 'ขอออกเอกสารใหม่', reqChange: 'ขอเปลี่ยนแปลงเอกสาร', reqCopy: 'ขอสำเนาเพิ่มเติม', reqCancel: 'ยกเลิกเอกสาร',
     mlDocNo: 'เลขเอกสาร', mlDocName: 'ชื่อเอกสาร', mlModel: 'รุ่น', mlRevDate: 'วันที่แก้ไข',
     approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
@@ -1177,6 +1179,16 @@ function showIsoPanel(doc) {
                <button class="ghost iso-revise">${t('revise')}</button>
                <button class="ghost iso-review">${t('annualReview')}</button>`;
   }
+  // Electronic approval record — the digital equivalent of the Prepared /
+  // Checked / Approved signature boxes (authenticated user + timestamp).
+  const sign = (name, at) =>
+    name ? `${esc(name)}${at ? ` · ${dateOnly(at)}` : ''}` : `<span class="muted">${t('apprPending')}</span>`;
+  const approvalBlock = `
+    <div class="appr-block">
+      <div><span class="appr-role">${t('apprPrepared')}</span> ${sign(doc.uploaded_by_name)}</div>
+      <div><span class="appr-role">${t('apprChecked')}</span> ${sign(doc.reviewer, doc.reviewed_at)}</div>
+      <div><span class="appr-role">${t('apprApproved')}</span> ${sign(doc.approver, doc.effective_date)}</div>
+    </div>`;
   panel.hidden = false;
   panel.innerHTML = `
     <div class="iso-row">
@@ -1185,6 +1197,7 @@ function showIsoPanel(doc) {
       ${doc.effective_date ? `<span class="iso-meta">${t('effLabel')}: ${dateOnly(doc.effective_date)}</span>` : ''}
       ${doc.next_review_date ? `<span class="iso-meta">${t('revwLabel')}: ${dateOnly(doc.next_review_date)}</span>` : ''}
     </div>
+    ${approvalBlock}
     <div class="iso-actions">${actions}</div>
     <div id="viewRevs" class="iso-revs"></div>
     <input type="file" id="reviseInput" accept=".pdf,.xls,.xlsx,.doc,.docx" hidden />`;
