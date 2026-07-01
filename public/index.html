@@ -151,6 +151,7 @@
       </div>
       <div class="admin-grid">
         <button type="button" id="darOpen" class="admin-item" data-i18n="dar">📝 New document (DAR)</button>
+        <button type="button" id="batchOpen" class="admin-item" data-i18n="batchDar">📚 Batch DAR (multiple)</button>
         <button type="button" id="approvalsOpen" class="admin-item" data-i18n="approvals">✅ Approvals</button>
         <button type="button" id="masterOpen" class="admin-item" data-i18n="masterList">📋 Master List</button>
         <button type="button" id="bulkOpen" class="admin-item" data-i18n="bulk">⧉ Bulk import (past files)</button>
@@ -238,6 +239,31 @@
         <div class="dialog-actions">
           <button type="button" id="darCancel" class="ghost" data-i18n="cancel">Cancel</button>
           <button type="submit" class="primary" data-i18n="darSubmit">Submit DAR</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Batch DAR — several documents on one request -->
+    <dialog id="batchDialog">
+      <form method="dialog">
+        <h2 data-i18n="batchTitle">📚 Batch DAR (multiple documents)</h2>
+        <p class="hint" data-i18n="batchHint">Drop several documents. Each is auto-classified from its document number and submitted on one DAR, then approved together. Files whose Type/Department can't be detected are skipped — use the single DAR for those.</p>
+        <label>
+          <span data-i18n="darRequestFor">Request for</span>
+          <select id="batchRequestType">
+            <option value="new" data-i18n="reqNew">Issue New Document</option>
+            <option value="change" data-i18n="reqChange">Change / Modification</option>
+            <option value="additional_copy" data-i18n="reqCopy">Request Additional copy</option>
+            <option value="cancel" data-i18n="reqCancel">Cancel document</option>
+          </select>
+        </label>
+        <div id="batchDrop" class="bulk-drop">
+          <span data-i18n="dropHere">Drop files here, or </span><label class="link-title"><span data-i18n="browse">browse</span><input type="file" id="batchInput" multiple accept=".pdf,.xls,.xlsx,.doc,.docx" hidden /></label>
+        </div>
+        <ul id="batchResults" class="scan-results"></ul>
+        <div class="dialog-actions">
+          <button type="button" id="batchApproveAll" class="primary" hidden data-i18n="batchApproveAll">✓ Approve all</button>
+          <button type="button" id="batchClose" class="ghost" data-i18n="close">Close</button>
         </div>
       </form>
     </dialog>

@@ -504,7 +504,7 @@ function fileSelectSql({ snippet = false } = {}) {
          f.doc_no, f.revision, f.doc_date, f.model, f.product_name, f.product_no,
          f.status, f.category, f.dept_code, f.effective_date, f.next_review_date,
          f.detail_of_revision, f.changed_pages, f.reviewer, f.reviewed_at, f.approver, f.reject_comment,
-         f.last_reviewed_at, f.last_reviewed_by, f.request_type,
+         f.last_reviewed_at, f.last_reviewed_by, f.request_type, f.dar_batch,
          (SELECT GROUP_CONCAT(pc.code, ' ') FROM product_codes pc WHERE pc.file_id = f.id) AS codes,
          (${CURRENT_REV}) AS is_current,
          (SELECT COUNT(*) FROM sop_files g2 WHERE g2.doc_no = f.doc_no AND f.doc_no <> '') AS revision_count,
@@ -926,8 +926,38 @@ app.get('/api/next-number', requireAuth, (req, res) => {
   res.json({ doc_no: buildNumber(cat, scopeCode, scopeCode, serial), revision: '00' });
 });
 
-// Submit a DAR (Document Action Request): creates a new document in
-// "pending_approval" (single-stage) with an auto-generated number (rev 00).
+// Create one pending document from a DAR (shared by the single + batch routes).
+// `opts`: { category(row), dept(row), customer(row|null), title, description,
+//           detail, changedPages, requestType, batch, userId }
+const REQUEST_TYPES = ['new', 'change', 'additional_copy', 'cancel'];
+function createDarDocument(file, opts) {
+  const cat = opts.category;
+  const scopeCode = cat.scope === 'cust' ? opts.customer.name : cat.scope === 'dept' ? opts.dept.name : '';
+  const serial = consumeSerial(seqKey(cat.code, scopeCode));
+  const docNo = buildNumber(cat, scopeCode, scopeCode, serial);
+  const str = (v, n) => (v || '').toString().trim().slice(0, n);
+  const requestType = REQUEST_TYPES.includes(opts.requestType) ? opts.requestType : 'new';
+  const pdfText = extractFullText(join(UPLOAD_DIR, file.filename), file.mimetype);
+  const info = db
+    .prepare(
+      `INSERT INTO sop_files
+        (title, description, doc_type_id, department_id, customer_id, doc_no, revision, status,
+         category, dept_code, detail_of_revision, changed_pages, request_type, dar_batch,
+         pdf_text, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
+       VALUES (?, ?, ?, ?, ?, ?, '00', 'pending_approval', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      str(opts.title, 200) || file.originalname, str(opts.description, 1000), ensureDocType(cat.code),
+      opts.dept.id, opts.customer ? opts.customer.id : null, docNo, cat.code, opts.dept.name,
+      str(opts.detail, 1000), str(opts.changedPages, 100), requestType, opts.batch || '',
+      pdfText, file.filename, file.originalname, file.mimetype, file.size, opts.userId,
+      new Date().toISOString()
+    );
+  setProductCodes(info.lastInsertRowid, '', docNo);
+  return info.lastInsertRowid;
+}
+
+// Submit a DAR: one document, pending_approval, auto-generated number (rev 00).
 app.post('/api/dar', requireAuth, (req, res) => {
   upload.single('file')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
@@ -942,35 +972,67 @@ app.post('/api/dar', requireAuth, (req, res) => {
     if (req.body.customer_id) customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(Number(req.body.customer_id));
     if (cat.scope === 'cust' && !customer) { cleanup(); return res.status(400).json({ error: 'This category needs a customer' }); }
 
-    const scopeCode = cat.scope === 'cust' ? customer.name : cat.scope === 'dept' ? dept.name : '';
-    const serial = consumeSerial(seqKey(cat.code, scopeCode));
-    const docNo = buildNumber(cat, scopeCode, scopeCode, serial);
-
-    const str = (v, n) => (v || '').toString().trim().slice(0, n);
-    const title = str(req.body.title, 200) || req.file.originalname;
-    const pdfText = extractFullText(join(UPLOAD_DIR, req.file.filename), req.file.mimetype);
-
-    const allowedTypes = ['new', 'change', 'additional_copy', 'cancel'];
-    const requestType = allowedTypes.includes(req.body.request_type) ? req.body.request_type : 'new';
-    const info = db
-      .prepare(
-        `INSERT INTO sop_files
-          (title, description, doc_type_id, department_id, customer_id, doc_no, revision, status,
-           category, dept_code, detail_of_revision, changed_pages, reviewer, approver, request_type,
-           pdf_text, stored_name, original_name, mimetype, size, uploaded_by, uploaded_at)
-         VALUES (?, ?, ?, ?, ?, ?, '00', 'pending_approval', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        title, str(req.body.description, 1000), ensureDocType(cat.code), dept.id,
-        customer ? customer.id : null, docNo, cat.code, dept.name,
-        str(req.body.detail_of_revision, 1000), str(req.body.changed_pages, 100),
-        str(req.body.reviewer, 100), str(req.body.approver, 100), requestType,
-        pdfText, req.file.filename, req.file.originalname, req.file.mimetype, req.file.size,
-        req.session.user.id, new Date().toISOString()
-      );
-    setProductCodes(info.lastInsertRowid, '', docNo);
-    res.status(201).json(oneRow(info.lastInsertRowid));
+    const id = createDarDocument(req.file, {
+      category: cat, dept, customer, title: req.body.title, description: req.body.description,
+      detail: req.body.detail_of_revision, changedPages: req.body.changed_pages,
+      requestType: req.body.request_type, userId: req.session.user.id,
+    });
+    res.status(201).json(oneRow(id));
   });
+});
+
+// Batch DAR: several documents on one request. Each file is auto-classified
+// (category + department from its document number), and all share a dar_batch
+// id so they appear and can be approved together. Files that can't be
+// classified are reported as skipped.
+app.post('/api/dar/batch', requireAuth, (req, res) => {
+  upload.array('files', 50)(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (!req.files || !req.files.length) return res.status(400).json({ error: 'Please attach at least one file' });
+    const batch = randomUUID();
+    const created = [];
+    const skipped = [];
+    for (const file of req.files) {
+      const meta = extractHeader(join(UPLOAD_DIR, file.filename), file.originalname, file.mimetype);
+      const typeCode = (meta.doc_no || '').split('-')[0];
+      const deptCode = (meta.doc_no || '').split('-')[1];
+      const cat = typeCode ? db.prepare('SELECT * FROM doc_categories WHERE code = ? COLLATE NOCASE').get(typeCode) : null;
+      const dept = deptCode ? db.prepare('SELECT * FROM departments WHERE name = ? COLLATE NOCASE').get(deptCode) : null;
+      // Batch auto-classify supports department-scoped categories only; for
+      // QM/EM (KGT-…) or customer-scoped FD, use the single DAR form.
+      if (!cat || cat.scope !== 'dept' || !dept) {
+        try { unlinkSync(join(UPLOAD_DIR, file.filename)); } catch { /* ignore */ }
+        skipped.push({ name: file.originalname, reason: 'Type/Department not detected' });
+        continue;
+      }
+      const id = createDarDocument(file, {
+        category: cat, dept, customer: null,
+        title: meta.title, detail: '', changedPages: '', requestType: req.body.request_type,
+        batch, userId: req.session.user.id,
+      });
+      created.push(oneRow(id));
+    }
+    res.status(201).json({ batch, created, skipped });
+  });
+});
+
+// Approve every pending document in a batch at once
+app.post('/api/dar/:batch/approve-all', requireAuth, (req, res) => {
+  const batch = req.params.batch;
+  const rows = db
+    .prepare(`SELECT id FROM sop_files WHERE dar_batch = ? AND status IN ('pending_review','pending_approval')`)
+    .all(batch);
+  const me = req.session.user.username;
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      const now = new Date().toISOString();
+      db.prepare(
+        'UPDATE sop_files SET status = ?, approver = ?, effective_date = ?, next_review_date = ?, reject_comment = ? WHERE id = ?'
+      ).run('master', me, now, addYear(now), '', r.id);
+    }
+  });
+  tx();
+  res.json({ approved: rows.length });
 });
 
 // --- Parse a filled FDC-001 (DAR) Excel to pre-fill the form ----------------

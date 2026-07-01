@@ -80,6 +80,12 @@ const I18N = {
     darEffNote: 'Effective Date', darOnApproval: 'recorded automatically on approval', darComment: 'Comment',
     darImportForm: '⬆ Import filled FDC-001 (Excel)', darImportHint: 'Reads all fields from a completed FDC-001 form', darImported: '✓ Read from FDC-001 — please review.',
     apprPrepared: 'Prepared by', apprChecked: 'Checked by', apprApproved: 'Approved by', apprPending: 'pending',
+    batchDar: '📚 Batch DAR (multiple)', batchTitle: '📚 Batch DAR (multiple documents)',
+    batchHint: "Drop several documents. Each is auto-classified from its document number and submitted on one DAR, then approved together. Files whose Type/Department can't be detected are skipped — use the single DAR for those.",
+    batchApproveAll: '✓ Approve all', batchSubmitting: 'Submitting…',
+    batchDone: (n, sk) => `✓ ${n} document(s) submitted on one DAR.${sk ? ` ${sk} skipped.` : ''}`,
+    batchApproved: (n) => `✓ Approved ${n} document(s).`, batchSkip: (f, r) => `${f} — skipped: ${r}`,
+    docGroup: (n) => `DAR · ${n} documents`,
     reqNew: 'Issue New Document', reqChange: 'Change / Modification', reqCopy: 'Request Additional copy', reqCancel: 'Cancel document',
     mlDocNo: 'Document No.', mlDocName: 'Document Name', mlModel: 'Model', mlRevDate: 'Rev. Date',
     approvals: '✅ Approvals', approvalsTitle: '✅ Approvals',
@@ -173,6 +179,12 @@ const I18N = {
     darEffNote: 'วันที่มีผล', darOnApproval: 'บันทึกอัตโนมัติเมื่ออนุมัติ', darComment: 'หมายเหตุ',
     darImportForm: '⬆ นำเข้า FDC-001 (Excel)', darImportHint: 'อ่านทุกช่องจากแบบฟอร์ม FDC-001 ที่กรอกแล้ว', darImported: '✓ อ่านจาก FDC-001 แล้ว — โปรดตรวจสอบ',
     apprPrepared: 'จัดทำโดย', apprChecked: 'ตรวจสอบโดย', apprApproved: 'อนุมัติโดย', apprPending: 'รอดำเนินการ',
+    batchDar: '📚 DAR หลายฉบับ', batchTitle: '📚 DAR หลายเอกสาร',
+    batchHint: 'วางหลายไฟล์ ระบบจะแยกประเภทจากเลขเอกสารและส่งเป็น DAR เดียว แล้วอนุมัติพร้อมกัน ไฟล์ที่ตรวจประเภท/แผนกไม่ได้จะถูกข้าม — ใช้ DAR ทีละฉบับแทน',
+    batchApproveAll: '✓ อนุมัติทั้งหมด', batchSubmitting: 'กำลังส่ง…',
+    batchDone: (n, sk) => `✓ ส่งแล้ว ${n} เอกสารใน DAR เดียว${sk ? ` ข้าม ${sk}` : ''}`,
+    batchApproved: (n) => `✓ อนุมัติแล้ว ${n} เอกสาร`, batchSkip: (f, r) => `${f} — ข้าม: ${r}`,
+    docGroup: (n) => `DAR · ${n} เอกสาร`,
     reqNew: 'ขอออกเอกสารใหม่', reqChange: 'ขอเปลี่ยนแปลงเอกสาร', reqCopy: 'ขอสำเนาเพิ่มเติม', reqCancel: 'ยกเลิกเอกสาร',
     mlDocNo: 'เลขเอกสาร', mlDocName: 'ชื่อเอกสาร', mlModel: 'รุ่น', mlRevDate: 'วันที่แก้ไข',
     approvals: '✅ การอนุมัติ', approvalsTitle: '✅ การอนุมัติ',
@@ -1043,10 +1055,68 @@ async function submitDAR(e) {
   }
 }
 
+// ---- Batch DAR (several documents on one request) ----
+let batchCurrent = '';
+function openBatch() {
+  $('#batchResults').innerHTML = '';
+  $('#batchApproveAll').hidden = true;
+  batchCurrent = '';
+  $('#batchDialog').showModal();
+}
+async function processBatchDar(files) {
+  const list = $('#batchResults');
+  list.innerHTML = `<li>${t('batchSubmitting')}</li>`;
+  const fd = new FormData();
+  fd.append('request_type', $('#batchRequestType').value);
+  [...files].forEach((f) => fd.append('files', f));
+  try {
+    const r = await api('/api/dar/batch', { method: 'POST', body: fd });
+    batchCurrent = r.batch;
+    const lines = [`<li>${t('batchDone', r.created.length, r.skipped.length)}</li>`];
+    r.created.forEach((f) => lines.push(`<li class="scan-hit bulk-ok">${esc(f.doc_no)} — ${esc(f.title)}</li>`));
+    r.skipped.forEach((s) => lines.push(`<li class="scan-hit bulk-warn">${esc(t('batchSkip', s.name, s.reason))}</li>`));
+    list.innerHTML = lines.join('');
+    $('#batchApproveAll').hidden = r.created.length === 0;
+    if (!$('#home').hidden) renderHome();
+  } catch (err) {
+    list.innerHTML = `<li class="scan-hit bulk-warn">${esc(err.message)}</li>`;
+  }
+}
+async function batchApproveAll() {
+  if (!batchCurrent) return;
+  try {
+    const r = await api(`/api/dar/${batchCurrent}/approve-all`, { method: 'POST' });
+    $('#batchResults').innerHTML = `<li class="scan-hit bulk-ok">${t('batchApproved', r.approved)}</li>`;
+    $('#batchApproveAll').hidden = true;
+    batchCurrent = '';
+    if (!$('#home').hidden) renderHome();
+  } catch {
+    /* ignore */
+  }
+}
+
 // ---- Approval queue ----
 async function openApprovals() {
   $('#approvalsDialog').showModal();
   renderApprovals();
+}
+function approvalItemHtml(f, sub) {
+  return `<li class="queue-item${sub ? ' sub' : ''}" data-id="${f.id}">
+    <div class="queue-main">
+      <span class="doc-no">${esc(f.doc_no || '-')}</span> ${sub ? '' : statusBadge(f.status)}
+      <span class="req-type">${t(REQUEST_KEY[f.request_type] || 'reqNew')}</span>
+      <div>${esc(f.title)}</div>
+      ${f.detail_of_revision ? `<div class="muted">${esc(f.detail_of_revision)}</div>` : ''}
+      ${f.reject_comment ? `<div class="reject-note">⤺ ${esc(f.reject_comment)}</div>` : ''}
+    </div>
+    <div class="queue-actions">
+      <button class="btn-link view-doc" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">👁</button>
+      ${f.status === 'draft'
+        ? `<button class="primary q-submit" data-id="${f.id}">${t('submitDoc')}</button>`
+        : `<button class="primary q-approve" data-id="${f.id}">${t('approve')}</button>
+           <button class="ghost q-reject" data-id="${f.id}">${t('reject')}</button>`}
+    </div>
+  </li>`;
 }
 async function renderApprovals() {
   const list = $('#approvalsList');
@@ -1056,28 +1126,32 @@ async function renderApprovals() {
   } catch {
     /* ignore */
   }
-  list.innerHTML = docs.length
-    ? docs
-        .map(
-          (f) => `<li class="queue-item" data-id="${f.id}">
-            <div class="queue-main">
-              <span class="doc-no">${esc(f.doc_no || '-')}</span> ${statusBadge(f.status)}
-              <span class="req-type">${t(REQUEST_KEY[f.request_type] || 'reqNew')}</span>
-              <div>${esc(f.title)}</div>
-              ${f.detail_of_revision ? `<div class="muted">${esc(f.detail_of_revision)}</div>` : ''}
-              ${f.reject_comment ? `<div class="reject-note">⤺ ${esc(f.reject_comment)}</div>` : ''}
-            </div>
-            <div class="queue-actions">
-              <button class="btn-link view-doc" data-id="${f.id}" data-name="${esc(f.title)}" data-pdf="${isPdf(f) ? 1 : 0}">👁</button>
-              ${f.status === 'draft'
-                ? `<button class="primary q-submit" data-id="${f.id}">${t('submitDoc')}</button>`
-                : `<button class="primary q-approve" data-id="${f.id}">${t('approve')}</button>
-                   <button class="ghost q-reject" data-id="${f.id}">${t('reject')}</button>`}
-            </div>
-          </li>`
-        )
-        .join('')
-    : `<li class="muted">${t('noApprovals')}</li>`;
+  if (!docs.length) {
+    list.innerHTML = `<li class="muted">${t('noApprovals')}</li>`;
+    return;
+  }
+  // Group documents submitted on the same DAR (dar_batch); singles stand alone
+  const groups = new Map();
+  docs.forEach((f) => {
+    const key = f.dar_batch || `single-${f.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(f);
+  });
+  let html = '';
+  for (const items of groups.values()) {
+    if (items.length > 1) {
+      html += `<li class="queue-group">
+        <div class="queue-group-head">
+          <strong>${t('docGroup', items.length)}</strong>
+          <button class="primary batch-approve" data-batch="${esc(items[0].dar_batch)}">${t('batchApproveAll')}</button>
+        </div>
+        <ul class="queue-sub-list">${items.map((f) => approvalItemHtml(f, true)).join('')}</ul>
+      </li>`;
+    } else {
+      html += approvalItemHtml(items[0]);
+    }
+  }
+  list.innerHTML = html;
 }
 
 // ---- Master List ----
@@ -1644,6 +1718,7 @@ function bindEvents() {
 
   // --- ISO document control -----------------------------------------------
   $('#darOpen').addEventListener('click', () => { closeAdmin(); openDAR(); });
+  $('#batchOpen').addEventListener('click', () => { closeAdmin(); openBatch(); });
   $('#approvalsOpen').addEventListener('click', () => { closeAdmin(); openApprovals(); });
   // Master List + single Upload are kept in the code but removed from the menu
   $('#masterOpen')?.addEventListener('click', () => { closeAdmin(); openMaster(); });
@@ -1666,6 +1741,24 @@ function bindEvents() {
     e.target.value = '';
   });
 
+  // Batch DAR (multiple documents on one request)
+  $('#batchClose').addEventListener('click', () => $('#batchDialog').close());
+  $('#batchApproveAll').addEventListener('click', batchApproveAll);
+  $('#batchInput').addEventListener('change', (e) => {
+    if (e.target.files.length) processBatchDar(e.target.files);
+    e.target.value = '';
+  });
+  const bdrop = $('#batchDrop');
+  ['dragover', 'dragenter'].forEach((ev) =>
+    bdrop.addEventListener(ev, (e) => { e.preventDefault(); bdrop.classList.add('drag'); })
+  );
+  ['dragleave', 'dragend'].forEach((ev) => bdrop.addEventListener(ev, () => bdrop.classList.remove('drag')));
+  bdrop.addEventListener('drop', (e) => {
+    e.preventDefault();
+    bdrop.classList.remove('drag');
+    if (e.dataTransfer.files.length) processBatchDar(e.dataTransfer.files);
+  });
+
   // Approval queue (delegated)
   $('#approvalsClose').addEventListener('click', () => $('#approvalsDialog').close());
   const afterQueueAction = () => {
@@ -1676,7 +1769,10 @@ function bindEvents() {
     const btn = e.target.closest('button');
     if (!btn) return;
     const id = btn.dataset.id;
-    if (btn.classList.contains('view-doc')) {
+    if (btn.classList.contains('batch-approve')) {
+      await api(`/api/dar/${btn.dataset.batch}/approve-all`, { method: 'POST' });
+      afterQueueAction();
+    } else if (btn.classList.contains('view-doc')) {
       openView(id, btn.dataset.name, btn.dataset.pdf === '1');
     } else if (btn.classList.contains('q-approve')) {
       await isoAction(`/api/files/${id}/approve`);

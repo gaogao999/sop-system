@@ -275,6 +275,11 @@ dialog.admin.wide { width: min(1000px, 96vw); }
 .queue-actions button, .queue-actions select { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); cursor: pointer; }
 .queue-actions .primary { background: var(--primary); color: #fff; border-color: var(--primary); }
 .reject-note { color: #b45309; font-size: 13px; }
+.queue-group { border: 1px solid #c7d2fe; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; background: #f5f8ff; }
+.queue-group-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.queue-group-head button { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--primary); background: var(--primary); color: #fff; cursor: pointer; }
+.queue-sub-list { list-style: none; margin: 0; padding: 0; }
+.queue-item.sub { border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 8px 2px; margin: 0; }
 .req-type { font-size: 11px; color: var(--muted); background: #eef2ff; border-radius: 6px; padding: 1px 7px; }
 
 .master-filters { display: flex; gap: 10px; margin: 14px 0 8px; }

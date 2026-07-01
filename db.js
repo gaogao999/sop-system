@@ -176,6 +176,8 @@ const newCols = {
   changed_pages: `TEXT NOT NULL DEFAULT ''`,
   // DAR "Request for" (FDC-001): new | change | additional_copy | cancel
   request_type: `TEXT NOT NULL DEFAULT 'new'`,
+  // Batch DAR: documents submitted on one DAR share this id (approved together)
+  dar_batch: `TEXT NOT NULL DEFAULT ''`,
   reviewer: `TEXT NOT NULL DEFAULT ''`,
   reviewed_at: `TEXT NOT NULL DEFAULT ''`, // when the reviewer (Checked by) approved
   approver: `TEXT NOT NULL DEFAULT ''`,
