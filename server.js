@@ -577,12 +577,17 @@ function stampDate(iso) {
   return `${Number(m[3])} ${MONTHS3[Number(m[2]) - 1]} ${m[1]}`; // 24 JAN 2024
 }
 
+// Control stamps are drawn at the real rubber-stamp size: 50 x 30 mm.
+const PT_PER_MM = 72 / 25.4;
+const STAMP_W = 50 * PT_PER_MM; // ~141.7 pt
+const STAMP_H = 30 * PT_PER_MM; // ~85.0 pt
+
 // Draw a rubber-stamp-style box at the top-right of a page. Sized to match the
-// real rubber stamp (compact), not spanning the page width.
+// real rubber stamp (50 x 30 mm), not spanning the page width.
 function drawStampBox(page, font, { color, title, boxText, bottom }) {
   const { width, height } = page.getSize();
-  const w = 168;
-  const h = 92;
+  const w = STAMP_W;
+  const h = STAMP_H;
   const x = width - w - 30;
   const y = height - h - 30;
   const cx = x + w / 2;
@@ -593,20 +598,20 @@ function drawStampBox(page, font, { color, title, boxText, bottom }) {
   };
   // outer border
   page.drawRectangle({ x, y, width: w, height: h, borderColor: c, borderWidth: 1.5, borderOpacity: 0.92 });
-  center('KGT', 11, y + h - 19);
-  center(title, 13, y + h - 40);
-  // inner boxed value (date for MASTER, destination for CONTROLLED PRINT)
+  center('KGT', 10, y + h - 17);
+  center(title, 12, y + h - 36);
+  // inner boxed value (effective date)
   if (boxText) {
-    const bw = 104;
-    const bh = 18;
+    const bw = 98;
+    const bh = 15;
     const bx = x + (w - bw) / 2;
-    const by = y + 25;
+    const by = y + 21;
     page.drawRectangle({ x: bx, y: by, width: bw, height: bh, borderColor: c, borderWidth: 1, borderOpacity: 0.92 });
-    const ts = 10;
+    const ts = 9;
     const tw = font.widthOfTextAtSize(boxText, ts);
     page.drawText(boxText, { x: bx + (bw - tw) / 2, y: by + (bh - ts) / 2 + 1, size: ts, font, color: c, opacity: 0.92 });
   }
-  center(bottom, 7, y + 8);
+  center(bottom, 6.5, y + 7);
 }
 
 // Draw text spread along the lower arc of an ellipse (like the curved bottom
@@ -640,36 +645,36 @@ function drawArcText(page, font, { text, cx, cy, rx, ry, size, color, opacity, s
 // bottom edge.
 function drawStampOval(page, font, { color, title, boxText, bottom }) {
   const { width, height } = page.getSize();
-  const rx = 98;
-  const ry = 50;
+  const rx = STAMP_W / 2; // 50 mm wide
+  const ry = STAMP_H / 2; // 30 mm tall
   const cx = width - 30 - rx;
   const cy = height - 30 - ry;
   const c = rgb(...color);
   const op = 0.92;
   // double oval border
-  page.drawEllipse({ x: cx, y: cy, xScale: rx, yScale: ry, borderColor: c, borderWidth: 1.6, borderOpacity: op });
-  page.drawEllipse({ x: cx, y: cy, xScale: rx - 3.5, yScale: ry - 3, borderColor: c, borderWidth: 0.7, borderOpacity: op });
+  page.drawEllipse({ x: cx, y: cy, xScale: rx, yScale: ry, borderColor: c, borderWidth: 1.5, borderOpacity: op });
+  page.drawEllipse({ x: cx, y: cy, xScale: rx - 3, yScale: ry - 2.6, borderColor: c, borderWidth: 0.7, borderOpacity: op });
   const center = (t, size, baseY) => {
     const tw = font.widthOfTextAtSize(t, size);
     page.drawText(t, { x: cx - tw / 2, y: baseY, size, font, color: c, opacity: op });
   };
-  center('KGT.', 11, cy + 20);
-  center(title, 12.5, cy + 4);
+  center('KGT.', 9.5, cy + 16);
+  center(title, 11, cy + 3);
   // boxed value (print date)
   if (boxText) {
-    const bw = 86;
-    const bh = 15;
+    const bw = 74;
+    const bh = 13;
     const bx = cx - bw / 2;
-    const by = cy - 22;
+    const by = cy - 18;
     page.drawRectangle({ x: bx, y: by, width: bw, height: bh, borderColor: c, borderWidth: 0.9, borderOpacity: op });
-    const ts = 9;
+    const ts = 8.5;
     const tw = font.widthOfTextAtSize(boxText, ts);
     page.drawText(boxText, { x: cx - tw / 2, y: by + (bh - ts) / 2 + 1, size: ts, font, color: c, opacity: op });
   }
   // curved bottom line along the lower arc
   drawArcText(page, font, {
-    text: bottom, cx, cy, rx: rx - 11, ry: ry - 9, size: 7, color: c, opacity: op,
-    start: 218, end: 322,
+    text: bottom, cx, cy, rx: rx - 8, ry: ry - 7, size: 6, color: c, opacity: op,
+    start: 216, end: 324,
   });
 }
 
