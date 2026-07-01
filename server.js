@@ -609,9 +609,73 @@ function drawStampBox(page, font, { color, title, boxText, bottom }) {
   center(bottom, 7, y + 8);
 }
 
+// Draw text spread along the lower arc of an ellipse (like the curved bottom
+// line of a rubber seal). Characters are distributed proportionally to their
+// width and rotated tangentially so the line reads left-to-right.
+function drawArcText(page, font, { text, cx, cy, rx, ry, size, color, opacity, start, end }) {
+  const chars = [...text];
+  const widths = chars.map((ch) => font.widthOfTextAtSize(ch, size));
+  const total = widths.reduce((a, b) => a + b, 0) || 1;
+  let cum = 0;
+  chars.forEach((ch, i) => {
+    const frac = (cum + widths[i] / 2) / total;
+    cum += widths[i];
+    if (ch === ' ') return;
+    const angDeg = start + (end - start) * frac;
+    const rad = (angDeg * Math.PI) / 180;
+    const px = cx + rx * Math.cos(rad);
+    const py = cy + ry * Math.sin(rad);
+    const rotDeg = angDeg + 90; // tangent, reading direction
+    const rotRad = (rotDeg * Math.PI) / 180;
+    // centre the glyph on its point by stepping back half its width along the baseline
+    const gx = px - (widths[i] / 2) * Math.cos(rotRad);
+    const gy = py - (widths[i] / 2) * Math.sin(rotRad);
+    page.drawText(ch, { x: gx, y: gy, size, font, color, opacity, rotate: degrees(rotDeg) });
+  });
+}
+
+// Draw an oval "seal"-style stamp at the top-right of a page, matching the real
+// KGT. CONTROLLED PRINT rubber stamp: double oval border, KGT. / title stacked,
+// a boxed date in the middle, and "DOCUMENT CONTROL SECTION" curved along the
+// bottom edge.
+function drawStampOval(page, font, { color, title, boxText, bottom }) {
+  const { width, height } = page.getSize();
+  const rx = 98;
+  const ry = 50;
+  const cx = width - 30 - rx;
+  const cy = height - 30 - ry;
+  const c = rgb(...color);
+  const op = 0.92;
+  // double oval border
+  page.drawEllipse({ x: cx, y: cy, xScale: rx, yScale: ry, borderColor: c, borderWidth: 1.6, borderOpacity: op });
+  page.drawEllipse({ x: cx, y: cy, xScale: rx - 3.5, yScale: ry - 3, borderColor: c, borderWidth: 0.7, borderOpacity: op });
+  const center = (t, size, baseY) => {
+    const tw = font.widthOfTextAtSize(t, size);
+    page.drawText(t, { x: cx - tw / 2, y: baseY, size, font, color: c, opacity: op });
+  };
+  center('KGT.', 11, cy + 20);
+  center(title, 12.5, cy + 4);
+  // boxed value (print date)
+  if (boxText) {
+    const bw = 86;
+    const bh = 15;
+    const bx = cx - bw / 2;
+    const by = cy - 22;
+    page.drawRectangle({ x: bx, y: by, width: bw, height: bh, borderColor: c, borderWidth: 0.9, borderOpacity: op });
+    const ts = 9;
+    const tw = font.widthOfTextAtSize(boxText, ts);
+    page.drawText(boxText, { x: cx - tw / 2, y: by + (bh - ts) / 2 + 1, size: ts, font, color: c, opacity: op });
+  }
+  // curved bottom line along the lower arc
+  drawArcText(page, font, {
+    text: bottom, cx, cy, rx: rx - 11, ry: ry - 9, size: 7, color: c, opacity: op,
+    start: 218, end: 322,
+  });
+}
+
 const STAMP = {
   master: { color: [0.85, 0, 0], allPages: false, box: { title: 'MASTER DOCUMENT', bottom: 'DOCUMENT CONTROL SECTION' } },
-  controlled: { color: [0.1, 0.3, 0.85], allPages: true, box: { title: 'CONTROLLED PRINT', bottom: 'DOCUMENT CONTROL SECTION' } },
+  controlled: { color: [0.1, 0.3, 0.85], allPages: true, oval: true, box: { title: 'CONTROLLED PRINT', bottom: 'DOCUMENT CONTROL SECTION' } },
   void: { color: [0.85, 0, 0], allPages: true, diagonal: 'VOID' },
   uncontrolled: { color: [0.85, 0, 0], allPages: true, diagonal: 'UNCONTROLLED' },
 };
@@ -641,11 +705,12 @@ async function watermarkPdf(bytes, kind, note) {
         opacity: 0.28,
         rotate: degrees(35),
       });
+    } else if (spec.oval) {
+      // Oval seal (CONTROLLED PRINT). Box shows the print date.
+      drawStampOval(page, font, { color: spec.color, ...spec.box, boxText: stampDate(note) });
     } else {
-      // Rubber-stamp-style box (MASTER DOCUMENT / CONTROLLED PRINT).
-      // For MASTER the box shows the effective date; for CONTROLLED, the destination.
-      const boxText = kind === 'master' ? stampDate(note) : note || '';
-      drawStampBox(page, font, { color: spec.color, ...spec.box, boxText });
+      // Rubber-stamp-style box (MASTER DOCUMENT). The box shows the effective date.
+      drawStampBox(page, font, { color: spec.color, ...spec.box, boxText: stampDate(note) });
     }
   });
   return await pdf.save();
@@ -1422,7 +1487,7 @@ app.post('/api/files/import-csv', requireAuth, (req, res) => {
 // Download (or inline view with ?inline=1). PDFs get the ISO control stamp
 // overlaid on the fly based on the document's status (and the distribute /
 // uncontrolled query flags), so stored files are never mutated.
-//   ?distribute=DEPT  -> blue CONTROLLED PRINT (all pages) + "Distributed to: DEPT"
+//   ?distribute=DEPT  -> blue CONTROLLED PRINT oval seal (all pages) + print date
 //   ?uncontrolled=1   -> red UNCONTROLLED (for external sharing, QP-DC-01 6.8)
 //   status master     -> red MASTER DOCUMENT (page 1) + effective date
 //   status void       -> red VOID (all pages)
@@ -1448,7 +1513,7 @@ app.get('/api/files/:id/download', requireAuth, async (req, res) => {
     kind = 'uncontrolled';
   } else if (req.query.distribute) {
     kind = 'controlled';
-    note = String(req.query.distribute).slice(0, 40); // destination dept -> stamp box
+    note = new Date().toISOString().slice(0, 10); // print date -> stamp box (matches the real rubber stamp)
   } else if (row.status === 'void') {
     kind = 'void';
   } else if (row.status === 'master') {
