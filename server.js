@@ -1042,12 +1042,21 @@ app.post('/api/dar', requireAuth, (req, res) => {
     if (req.body.customer_id) customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(Number(req.body.customer_id));
     if (cat.scope === 'cust' && !customer) { cleanup(); return res.status(400).json({ error: 'This category needs a customer' }); }
 
-    const id = createDarDocument(req.file, {
-      category: cat, dept, customer, title: req.body.title, description: req.body.description,
-      detail: req.body.detail_of_revision, changedPages: req.body.changed_pages,
-      requestType: req.body.request_type, userId: req.session.user.id,
-    });
-    res.status(201).json(oneRow(id));
+    try {
+      const id = createDarDocument(req.file, {
+        category: cat, dept, customer, title: req.body.title, description: req.body.description,
+        detail: req.body.detail_of_revision, changedPages: req.body.changed_pages,
+        requestType: req.body.request_type, userId: req.session.user.id,
+      });
+      res.status(201).json(oneRow(id));
+    } catch (e) {
+      // Runs inside multer's callback, which Express does NOT wrap — an
+      // uncaught throw here would crash the process (and the host would return
+      // a 502). Report it as a normal error instead.
+      cleanup();
+      console.error('DAR create failed:', e);
+      res.status(500).json({ error: `Could not create the document: ${e.message}` });
+    }
   });
 });
 
@@ -1059,30 +1068,37 @@ app.post('/api/dar/batch', requireAuth, (req, res) => {
   upload.array('files', 50)(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
     if (!req.files || !req.files.length) return res.status(400).json({ error: 'Please attach at least one file' });
-    const batch = randomUUID();
-    const created = [];
-    const skipped = [];
-    for (const file of req.files) {
-      const meta = extractHeader(join(UPLOAD_DIR, file.filename), file.originalname, file.mimetype);
-      const typeCode = (meta.doc_no || '').split('-')[0];
-      const deptCode = (meta.doc_no || '').split('-')[1];
-      const cat = typeCode ? db.prepare('SELECT * FROM doc_categories WHERE code = ? COLLATE NOCASE').get(typeCode) : null;
-      const dept = deptCode ? db.prepare('SELECT * FROM departments WHERE name = ? COLLATE NOCASE').get(deptCode) : null;
-      // Batch auto-classify supports department-scoped categories only; for
-      // QM/EM (KGT-…) or customer-scoped FD, use the single DAR form.
-      if (!cat || cat.scope !== 'dept' || !dept) {
-        try { unlinkSync(join(UPLOAD_DIR, file.filename)); } catch { /* ignore */ }
-        skipped.push({ name: file.originalname, reason: 'Type/Department not detected' });
-        continue;
+    try {
+      const batch = randomUUID();
+      const created = [];
+      const skipped = [];
+      for (const file of req.files) {
+        const meta = extractHeader(join(UPLOAD_DIR, file.filename), file.originalname, file.mimetype);
+        const typeCode = (meta.doc_no || '').split('-')[0];
+        const deptCode = (meta.doc_no || '').split('-')[1];
+        const cat = typeCode ? db.prepare('SELECT * FROM doc_categories WHERE code = ? COLLATE NOCASE').get(typeCode) : null;
+        const dept = deptCode ? db.prepare('SELECT * FROM departments WHERE name = ? COLLATE NOCASE').get(deptCode) : null;
+        // Batch auto-classify supports department-scoped categories only; for
+        // QM/EM (KGT-…) or customer-scoped FD, use the single DAR form.
+        if (!cat || cat.scope !== 'dept' || !dept) {
+          try { unlinkSync(join(UPLOAD_DIR, file.filename)); } catch { /* ignore */ }
+          skipped.push({ name: file.originalname, reason: 'Type/Department not detected' });
+          continue;
+        }
+        const id = createDarDocument(file, {
+          category: cat, dept, customer: null,
+          title: meta.title, detail: '', changedPages: '', requestType: req.body.request_type,
+          batch, userId: req.session.user.id,
+        });
+        created.push(oneRow(id));
       }
-      const id = createDarDocument(file, {
-        category: cat, dept, customer: null,
-        title: meta.title, detail: '', changedPages: '', requestType: req.body.request_type,
-        batch, userId: req.session.user.id,
-      });
-      created.push(oneRow(id));
+      res.status(201).json({ batch, created, skipped });
+    } catch (e) {
+      // multer callback — see /api/dar note. Clean up any leftovers and report.
+      for (const f of req.files) { try { unlinkSync(join(UPLOAD_DIR, f.filename)); } catch { /* ignore */ } }
+      console.error('Batch DAR failed:', e);
+      res.status(500).json({ error: `Could not process the batch: ${e.message}` });
     }
-    res.status(201).json({ batch, created, skipped });
   });
 });
 
@@ -1596,6 +1612,20 @@ app.delete('/api/files/:id', requireAuth, (req, res) => {
 // Health check
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.get('/api/version', (req, res) => res.json({ version: APP_VERSION }));
+
+// JSON error handler — any uncaught throw in a route returns a readable message
+// (not an HTML 500 page) so the client can display the real cause.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('Unhandled route error:', err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+});
+
+// Last-resort safety net: log (don't silently exit) so a stray async throw
+// doesn't take the whole process down and turn every request into a host 502.
+process.on('uncaughtException', (err) => console.error('uncaughtException:', err));
+process.on('unhandledRejection', (err) => console.error('unhandledRejection:', err));
 
 app.listen(PORT, () => {
   console.log(`SOP File Management System: http://localhost:${PORT}`);

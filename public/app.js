@@ -334,15 +334,45 @@ function isExpired(f) {
   return Date.now() - base.getTime() > TWO_YEARS_MS;
 }
 
+// Turn a failed response into a message that actually explains what happened,
+// not just a bare status code. Gateway errors (502/503/504) come from the host
+// (not our app) and return an HTML page with no .error field, so we spell out
+// the likely cause. Any other non-JSON body is shown as a trimmed snippet.
+function describeError(res, data, raw) {
+  if (data && data.error) return data.error; // application-level message (JSON)
+  const gateway = {
+    502: 'Bad Gateway (502): the server did not return a valid response — it likely restarted or ran out of memory, often while reading a large or scanned PDF. Please try again; if it keeps failing the file may be too large for the current server.',
+    503: 'Service Unavailable (503): the server is starting up or temporarily overloaded (a free / sleeping host does this on the first request). Wait a few seconds and try again.',
+    504: 'Gateway Timeout (504): the server took too long to respond, usually while reading a large or scanned PDF. Try a smaller file or retry.',
+    413: 'File too large (413): the upload exceeds the server limit.',
+  };
+  if (gateway[res.status]) return gateway[res.status];
+  const snippet = (raw || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+  const label = res.statusText ? `${res.status} ${res.statusText}` : `Error ${res.status}`;
+  return snippet ? `${label} — ${snippet}` : label;
+}
+
 async function api(path, opts) {
-  const res = await fetch(path, { headers: { Accept: 'application/json' }, ...opts });
+  let res;
+  try {
+    res = await fetch(path, { headers: { Accept: 'application/json' }, ...opts });
+  } catch {
+    // fetch never got a response (offline, DNS, connection reset, TLS)
+    const err = new Error('Cannot reach the server. Check your connection and try again.');
+    err.status = 0;
+    throw err;
+  }
   if (res.status === 401) {
     location.href = '/login.html';
     throw new Error('unauthorized');
   }
-  const data = await res.json().catch(() => ({}));
+  // Read the body once as text, then try to parse JSON. This lets us surface
+  // non-JSON error pages (a gateway 502/503) instead of swallowing them.
+  const raw = await res.text().catch(() => '');
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { /* body was not JSON */ }
   if (!res.ok) {
-    const err = new Error(data.error || `Error (${res.status})`);
+    const err = new Error(describeError(res, data, raw));
     err.status = res.status;
     err.data = data;
     throw err;
